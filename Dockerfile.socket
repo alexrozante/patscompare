@@ -1,0 +1,24 @@
+FROM node:20-bullseye-slim
+
+EXPOSE 5001
+
+ENV ROLE=socket
+
+ENV NODE_ENV=production
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/patscompare
+
+COPY entrypoint.sh start.sh package.json package-lock.json ./
+COPY server ./server
+
+RUN chmod +x ./entrypoint.sh ./start.sh
+
+RUN npm ci --production
+
+ENTRYPOINT ["/opt/patscompare/entrypoint.sh"]

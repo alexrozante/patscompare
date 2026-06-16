@@ -1,17 +1,39 @@
 {
-  "name": "patscompare",
-  "version": "0.1.0",
+  "name": "PATSCompare",
+  "version": "3.0.0",
+  "description": "Serviço de comparação de print streams",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev -p 3000",
+    "lint": "eslint",
     "start": "next start",
-    "lint": "eslint"
+    "start:socket": "node server/socket-server.js",
+    "start:worker": "node server/worker.js",
+    "build": "next build"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^7.1.0",
+    "axios": "^1.5.0",
+    "bullmq": "^5.78.1",
+    "diff": "^5.2.0",
+    "express": "^4.19.2",
+    "formidable": "^2.1.2",
+    "ioredis": "^5.4.1",
+    "multer": "^1.4.5-lts.1",
+    "natural": "^6.10.4",
     "next": "16.2.9",
+    "pdfjs-dist": "3.11.174",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.11.0",
+    "pixelmatch": "^5.3.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "redis": "^6.0.0",
+    "sharp": "^0.33.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -22,5 +44,14 @@
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "msgpackr-extract@3.0.4": true,
+    "sharp@0.34.5": true,
+    "sharp@0.33.5": true,
+    "unrs-resolver@1.12.2": true
   }
 }

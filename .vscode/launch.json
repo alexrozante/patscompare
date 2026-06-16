@@ -1,0 +1,97 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "docker up db redis minio",
+      "command": "cd ${workspaceFolder} && docker compose up db redis minio -d"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "start (dev)",
+      "command": "cd ${workspaceFolder} && npm run dev"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "start:socket (dev)",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}/server/socket-server.js",
+       "env": {
+        "SOCKET_PORT": "5001",
+        "REDIS_HOST": "127.0.0.1",
+        "REDIS_PORT": "6379",
+        "REDIS_URL": "redis://127.0.0.1:6379",
+        "PGHOST": "127.0.0.1",
+        "PGPORT": "5432",
+        "PGDATABASE": "patscompare",
+        "PGUSER": "patscompare",
+        "PGPASSWORD": "P@TSC0mpar3"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "start:worker (dev)",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/server/worker.js",
+      "env": {
+        "WORKER_ID": "1",
+        "WORKER_CONCURRENCY": "1",
+        "REDIS_HOST": "127.0.0.1",
+        "REDIS_PORT": "6379",
+        "REDIS_URL": "redis://127.0.0.1:6379",
+        "PGHOST": "127.0.0.1",
+        "PGPORT": "5432",
+        "PGDATABASE": "patscompare",
+        "PGUSER": "patscompare",
+        "PGPASSWORD": "P@TSC0mpar3"
+      }
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "lint",
+      "command": "npm run lint"
+    },
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "build",
+      "command": "npm run build"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Web DEV",
+      "configurations": [
+        "docker up db redis minio",
+        "start:socket (dev)",
+        "start:worker (dev)",
+        "start (dev)"
+      ]
+    },
+    {
+      "name": "Socket DEV",
+      "configurations": [
+        "docker up db redis minio",
+        "start:socket (dev)"
+      ]
+    },
+    {
+      "name": "Worker DEV",
+      "configurations": [
+        "docker up db redis minio",
+        "start:socket (dev)",
+        "start:worker (dev)"
+      ]
+    }
+  ]
+}
