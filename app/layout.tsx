@@ -12,7 +12,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-screen bg-slate-50 text-slate-900">
+      <body className="min-h-screen bg-slate-50 black">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <header className="mb-6 flex items-center justify-between">
             <div className="font-bold text-xl">PATS Compare</div>

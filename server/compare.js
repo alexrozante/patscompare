@@ -5,17 +5,19 @@
  * PATS Technologies
  * 16/06/2026
  */
-import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync, createWriteStream } from 'fs';
-import { join } from 'path';
-import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
-import { spawn } from 'child_process';
+import sharp from 'sharp';
 import util from 'util';
-import { JaroWinklerDistance } from 'natural';
 import { diffWordsWithSpace } from 'diff';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.js';
+import natural from 'natural';
+import { join } from 'path';
+import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync, createWriteStream } from 'fs';
+import { spawn } from 'child_process';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
+
+const { JaroWinklerDistance } = natural;
 
 async function extractTextPerPage(pdfPath) {
   const data = new Uint8Array(readFileSync(pdfPath));
@@ -360,4 +362,4 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
   }
 }
 
-export default { runCompareJob };  
+export { runCompareJob };  

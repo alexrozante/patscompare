@@ -6,16 +6,15 @@
  * PATS Technologies
  * 16/06/2026
  */
-import { pool, createComparison, updateComparison } from '/db/db';
+import { createWriteStream, mkdtempSync, copyFileSync, rmSync } from 'fs';
+import axios from 'axios';
+import { join } from 'path';
+import { pool, createComparison, updateComparison } from './db.js';
+import { runCompareJob } from './compare.js';
+import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { get } from 'axios';
-import { createWriteStream, mkdtempSync, copyFileSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { runCompareJob } from './compare';
-import { pool } from './db';
 
 const connection = new IORedis({
   host: process.env.REDIS_HOST || 'localhost',
@@ -29,7 +28,7 @@ function isUrl(s) {
 }
 
 async function downloadToFile(url, dest) {
-  const res = await get(url, { responseType: 'stream', timeout: 120000 });
+  const res = await axios.get(url, { responseType: 'stream', timeout: 120000 });
   await new Promise((resolve, reject) => {
     const w = createWriteStream(dest);
     res.data.pipe(w);

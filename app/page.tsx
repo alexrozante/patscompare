@@ -91,7 +91,7 @@ export default function HomePage() {
       : 0;
   return (
     <main className="space-y-6">
-      <section className="rounded-lg border bg-white p-4 shadow-sm">
+      <section className="rounded-lg border bg-white p-4 shadow-sm text-black">
         <h1 className="mb-4 text-lg font-semibold">Nova comparação</h1>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
@@ -120,34 +120,8 @@ export default function HomePage() {
               />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                OFFSET
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={9}
-                value={offset}
-                onChange={e => setOffset(Number(e.target.value))}
-                className="w-full rounded-md border px-2 py-1 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                FATSIM (%)
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={fatSim}
-                onChange={e => setFatSim(Number(e.target.value))}
-                className="w-full rounded-md border px-2 py-1 text-sm"
-              />
-            </div>
-            <div className="flex items-end">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-end col-span-2">
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -155,9 +129,43 @@ export default function HomePage() {
                   onChange={e => setPosfixa(e.target.checked)}
                   className="h-4 w-4 rounded border"
                 />
-                POSFIXA
+                Apenas páginas na mesma posição
               </label>
             </div>
+            {!posfixa && ( 
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Máx. Págs. Inseridas/Excluídas
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={9}
+                value={offset}
+                disabled={posfixa}
+                readOnly={posfixa}
+                onChange={e => setOffset(Number(e.target.value))}
+                className="w-full rounded-md border px-2 py-1 text-sm"
+              />
+            </div>
+            )}
+            {!posfixa && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Similaridade mínima (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={fatSim}
+                disabled={posfixa}
+                readOnly={posfixa}
+                onChange={e => setFatSim(Number(e.target.value))}
+                className="w-full rounded-md border px-2 py-1 text-sm"
+              />
+            </div>          
+            )}
           </div>
           {errorMsg && (
             <p className="text-sm text-red-600">{errorMsg}</p>

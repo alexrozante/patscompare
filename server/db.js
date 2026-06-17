@@ -5,6 +5,8 @@
  * PATS Technologies
  * 16/06/2026
  */
+import { Pool } from 'pg';
+
 const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
   port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
@@ -54,4 +56,4 @@ async function updateComparison(id, fields = {}) {
   return res.rows[0];
 }
 
-export default { pool, createComparison, getComparison, updateComparison };
+export { pool, createComparison, getComparison, updateComparison };
