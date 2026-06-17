@@ -1,27 +1,30 @@
 /**
  * PATSCompare
  * worker.js
- * Execucao do servidor de Socket IO
- * Escuta a fila Redis e cria tarefas para comparar arquivos
- * PATS Technologies
- * 16/06/2026
+ * Comparison queue agent to process comparisons
+ * (c) PATS Technologies
  */
-import { createWriteStream, mkdtempSync, copyFileSync, rmSync } from 'fs';
+import fs, { createWriteStream, mkdtempSync, copyFileSync, rmSync } from 'fs';
+import path from 'path';
 import axios from 'axios';
-import { join } from 'path';
-import { pool, createComparison, updateComparison } from './db.js';
+import { pool, log, createComparison, updateComparison } from './db.js';
 import { runCompareJob } from './compare.js';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 
+log('worker', 'I', 'worker carregado.');
+
 const connection = new IORedis({
   host: process.env.REDIS_HOST || 'localhost',
   port: process.env.REDIS_PORT ? Number(process.env.REDIS_PORT) : 6379,
-  retryStrategy(times) { return Math.min(times * 50, 2000); }, // ms
+  retryStrategy(times) { 
+    return Math.min(times * 50, 2000); 
+  }, // ms
   maxRetriesPerRequest: null
 });
+log('worker', 'I', 'conexão com Redis criada.');
 
 function isUrl(s) {
   return typeof s === 'string' && /^https?:///i.test(s);
@@ -32,54 +35,84 @@ async function downloadToFile(url, dest) {
   await new Promise((resolve, reject) => {
     const w = createWriteStream(dest);
     res.data.pipe(w);
-    w.on('finish', resolve);
-    w.on('error', reject);
+    w.on('finish', () => {
+      log('worker', 'I', 'download concluido');
+      resolve();
+    });
+    w.on('error', () => {
+      log('worker', 'E', 'download nao concluido');
+      reject()
+    });
   });
 }
 
 const worker = new Worker('compare-queue', async job => {
+
   const { jobId, aUrl, bUrl, aPath, bPath, params } = job.data;
-  console.log(`[Worker ${process.env.WORKER_ID || '1'}] Processing ${jobId}`);
-  // ensure comparison row exists
+
+  const workerId = process.env.WORKER_ID || '1';
   const compId = jobId || uuidv4();
+
+  log('worker', 'I', `worker ${workerId} iniciando comparacao id ${compId}`);
+
   await createComparison({ id: compId, inputA: aUrl || aPath, inputB: bUrl || bPath, status: 'running' });
-  const tmpDir = mkdtempSync(join(tmpdir(), `pats-${jobId}-`));
-  const localA = join(tmpDir, 'a.pdf');
-  const localB = join(tmpDir, 'b.pdf');
+  log('worker', 'I', `worker ${workerId} registrou ${compId} no BD.`);
+
+  const jobsRoot = path.join(process.cwd(), 'data', 'jobs');
+  fs.mkdirSync(jobsRoot, { recursive: true });
+
+  const jobDir = path.join(jobsRoot, jobId);
+  fs.mkdirSync(jobDir, { recursive: true });
+
+  const localA = path.join(jobDir, path.basename(aPath));
+  const localB = path.join(jobDir, path.basename(bPath));
+
   try {
-    // download or copy inputs
     if (isUrl(aUrl)) {
+      log('worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo A.`);
       await downloadToFile(aUrl, localA);
+      log('worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
     } else if (aPath) {
       copyFileSync(aPath, localA);
+      log('worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
     } else {
+      log('worker', 'E', `worker ${workerId} comp ${compId} - arquivo A nao localizado.`);
       throw new Error('Missing input A');
     }
     if (isUrl(bUrl)) {
+      log('worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo B.`);
       await downloadToFile(bUrl, localB);
+      log('worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
     } else if (bPath) {
       copyFileSync(bPath, localB);
+      log('worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
     } else {
+      log('worker', 'E', `worker ${workerId} comp ${compId} - arquivo B nao localizado.`);
       throw new Error('Missing input B');
     }
     // progress callback mapping to Bull job progress
     const progressCb = async p => {
       try {
-        // include jobId to be explicit
         await job.updateProgress(Object.assign({ jobId }, p));
       } catch (e) {
-        console.warn('Failed to update job progress', e);
+        log('worker', 'E', `worker ${workerId} comp ${jobId} - falha ao atualizar progresso do job (worker.progressCb)`);
+        log('worker', 'E', `worker ${workerId} comp ${jobId} - ${String(e)}`);
       }
     };
+
     // call the refactored compare function
+    log('worker', 'I', `worker ${workerId} comp ${compId} - comparacao iniciada.`);
     const result = await runCompareJob({
       jobId,
       aPdf: localA,
       bPdf: localB,
       params: params || {},
       progressCb,
-      outputDir: join(tmpDir, 'workspace')
+      outputDir: jobDir
     });
+
+    log('worker', 'I', `worker ${workerId} comp ${compId} - comparacao finalizada.`);
+
     // Optionally: upload artifacts to S3 here (not implemented)
     // result.artifacts contains local paths: previews/resultPdf/workspace
     // upload artifacts to S3 if desired (not implemented here) and record artifacts paths
@@ -88,6 +121,7 @@ const worker = new Worker('compare-queue', async job => {
       resultPdf: result.artifacts.resultPdf,
       workspace: result.artifacts.workspace
     };
+
     await updateComparison(compId, {
       status: 'done',
       total_pages: result.totalPages,
@@ -95,30 +129,46 @@ const worker = new Worker('compare-queue', async job => {
       artifacts: JSON.stringify(artifacts),
       error: null
     });
+    log('worker', 'I', `worker ${workerId} comp ${compId} - resultados salvos no BD.`);
+
     // final progress update (best-effort)
     await job.updateProgress({ jobId, ready: true, done: result.totalPages, total: result.totalPages, message: 'Done' });
-    console.log(`[Worker ${process.env.WORKER_ID || '1'}] Completed ${jobId}`);
+
+    log('worker', 'I', `worker ${workerId} comp ${compId} - concluida.`);
     return { success: true, totalPages: result.totalPages, matches: result.matches, artifacts: result.artifacts };
+
    } catch (err) {
-    console.error(`[Worker ${process.env.WORKER_ID || '1'}] Error ${jobId}:`, err);
+    log('worker', 'E', `worker ${workerId} comp ${compId} - ${String(err)}`);
     await updateComparison(compId, { status: 'failed', error: String(err) });
     throw err;
-  } finally {
-    // cleanup tmp dir
-    try {
-      rmSync(tmpDir, { recursive: true, force: true });
-    } catch (e) {
-      console.warn('Failed to cleanup tmp dir', tmpDir, e);
-    }
   }
-}, { connection, concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10), lockDuration: 30 * 60 * 1000 });
+}, { 
+  connection, 
+  concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10), 
+  lockDuration: 30 * 60 * 1000 
+});
 
 // graceful shutdown
 async function shutdown() {
-  console.log('Shutting down worker...');
-   try { await worker.close(); } catch (e) { console.warn('Error closing worker', e); }
-  try { connection.disconnect(); } catch (e) { /* ignore */ }
-  try { await pool.end(); } catch (e) { /* ignore */ }
+  const workerId = process.env.WORKER_ID || '1';
+
+  log('worker', 'I', `worker ${workerId} encerrando.`);
+
+  try { 
+    await worker.close(); 
+  } catch (e) { 
+    log('worker', 'E', `worker ${workerId} erro ao encerrar: ${String(e)}.`);
+  }
+  try { 
+    connection.disconnect(); 
+  } catch (e) { 
+    /* ignore */ 
+  }
+  try { 
+    await pool.end(); 
+  } catch (e) { 
+    /* ignore */ 
+  }
   process.exit(0);
 }
 

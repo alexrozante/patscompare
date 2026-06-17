@@ -1,4 +1,9 @@
-// app/api/compare/route.ts
+/**
+ * PATSCompare
+ * /app/api/compare/route.js
+ * API route that starts a two PDF comparison task
+ * (c) PATS Technologies
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { Queue } from 'bullmq';
 import fs from 'fs';

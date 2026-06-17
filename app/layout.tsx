@@ -1,4 +1,9 @@
-// app/layout.tsx
+/**
+ * PATSCompare
+ * /app/layout.txt
+ * Main app layout
+ * (c) PATS Technologies
+ */
 import './globals.css';
 import type { Metadata } from 'next';
 export const metadata: Metadata = {

@@ -1,9 +1,8 @@
 /**
  * PATSCompare
  * init.sql
- * Criacao do BD PatsCompare
- * PATS Technologies
- * 16/06/2026
+ * Database initialization script
+ * (c) PATS Technologies
  */
 CREATE TABLE comparisons (
   id          UUID PRIMARY KEY,
@@ -19,3 +18,14 @@ CREATE TABLE comparisons (
 );
 
 CREATE INDEX comparisons_ix_created_at ON comparisons(created_at);
+
+CREATE TABLE log (
+  id          UUID PRIMARY KEY,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  module      VARCHAR(30) NOT NULL,
+  type        CHAR(1),
+  message     TEXT NOT NULL
+);
+
+CREATE INDEX log_ix_created_at ON log(module, created_at);
+

@@ -1,5 +1,11 @@
-// app/history/page.tsx
+/**
+ * PATSCompare
+ * /app/history/page.tsx
+ * Renders the comparison results table page
+ * (c) PATS Technologies
+ */
 'use client';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 type HistoryItem = {
@@ -28,7 +34,7 @@ export default function HistoryPage() {
   if (loading) return <p>Carregando histórico...</p>;
   return (
     <main className="space-y-4">
-      <section className="rounded-lg border bg-white p-4 shadow-sm">
+      <section className="rounded-lg border bg-white p-4 shadow-sm text-black">
         <h1 className="mb-2 text-lg font-semibold">Histórico</h1>
         {items.length === 0 ? (
           <p className="text-sm text-slate-600">
@@ -50,7 +56,7 @@ export default function HistoryPage() {
                 {items.map(item => (
                   <tr key={item.id} className="border-b last:border-0">
                     <td className="px-2 py-2 font-mono">
-                      {item.id.slice(0, 8)}…
+                      {item.id}
                     </td>
                     <td className="px-2 py-2 text-slate-700">
                       {new Date(item.created_at).toLocaleString('pt-BR')}

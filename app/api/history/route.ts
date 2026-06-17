@@ -1,9 +1,15 @@
-// app/api/history/route.ts
+/**
+ * PATSCompare
+ * /app/api/history/route.js
+ * API route that returns the comparison table records
+ * (c) PATS Technologies
+ */
 import { NextResponse } from 'next/server';
 import { pool } from '../../../server/db';
 
 export async function GET() {
   try {
+    //TODO Adicionar suporte para paginacao e futuramente filtros
     const res = await pool.query(
       `
       SELECT

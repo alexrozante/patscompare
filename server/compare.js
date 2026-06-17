@@ -1,17 +1,17 @@
 /**
  * PATSCompare
  * compare.js
- * Realiza a comparacao de dois arquivos PDF existentes especificados
- * PATS Technologies
- * 16/06/2026
+ * PDF comparison service
+ * (c) PATS Technologies
  */
 import PDFDocument from 'pdfkit';
+import natural from 'natural';
 import sharp from 'sharp';
 import util from 'util';
 import { diffWordsWithSpace } from 'diff';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.js';
-import natural from 'natural';
 import { join } from 'path';
+import { pool, log } from './db.js';
 import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync, createWriteStream } from 'fs';
 import { spawn } from 'child_process';
 import { tmpdir } from 'os';
@@ -243,12 +243,19 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
   const aDir = join(tmpRoot, 'a'); 
   const bDir = join(tmpRoot, 'b'); 
   const outPagesDir = join(tmpRoot, 'pages');
+
+  log('compare', 'I', `comparacao ${jobId} iniciada.`);
+
   await ensureDir(aDir);
   await ensureDir(bDir);
   await ensureDir(outPagesDir);
+
   const OFFSET = params.OFFSET ?? 3;
   const FATSIM = params.FATSIM ?? 0.7;
   const POSFIXA = params.POSFIXA ?? false;
+
+  log('worker', 'I', `POSFIXA=${String(POSFIXA)}, OFFSET=${String(OFFSET)}, FATSIM=${String(FATSIM)}`);
+
   let matches = [];
   let totalPages = 0;
   try {
@@ -257,13 +264,18 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
       extractTextPerPage(aPdf),
       extractTextPerPage(bPdf)
     ]);
+    
     progressCb({ jobId, message: 'Convertendo PDFs...', done: 0, total: 1 });
     const [aImgs, bImgs] = await Promise.all([
       pdfToPngs(aPdf, aDir, 'a'),
       pdfToPngs(bPdf, bDir, 'b')
     ]);
+
+    log('worker', 'I', `comp ${jobId} - relacionando paginas...`);
     matches = matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA });
     totalPages = matches.length;
+    log('worker', 'I', `comp ${jobId} - ${totalPages} processadas (relacionamento).`);
+
     progressCb({ jobId, message: 'Processando páginas...', done: 0, total: totalPages, totalPages });
     let done = 0;
     for (let i = 0; i < matches.length; i++) {
@@ -345,7 +357,7 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
       .map(f => join(outPagesDir, f));
     const outPdf = join(tmpRoot, 'result.pdf');
     await imagesToPdf(rImgs, outPdf);
-    progressCb({ jobId, message: 'Pronto!', ready: true, done: totalPages, total: totalPages });
+    progressCb({ jobId, message: 'Comparacao finalizada.', ready: true, done: totalPages, total: totalPages });
     return {
       jobId,
       totalPages,
@@ -358,6 +370,7 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
     };
   } catch (err) {
     // bubble up error after ensuring caller can cleanup or inspect tmp dir
+    log('worker', 'E', `comp ${jobId}: ${String(err)}`);
     throw err;
   }
 }

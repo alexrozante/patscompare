@@ -19,7 +19,6 @@
     "canvas": "^3.2.3",
     "diff": "^5.2.0",
     "express": "^4.19.2",
-    "formidable": "^2.1.2",
     "ioredis": "^5.4.1",
     "multer": "^1.4.5-lts.1",
     "natural": "^6.10.4",
@@ -38,7 +37,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/formidable": "^3.5.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

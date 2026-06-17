@@ -1,6 +1,12 @@
-// app/page.tsx
+/**
+ * PATSCompare
+ * /app/page.tsx
+ * Renders the home page 
+ * (c) PATS Technologies
+ */
 'use client';
-import { FormEvent, useState, useEffect } from 'react';
+
+import { ChangeEvent, useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
 let socket: Socket | null = null;
@@ -49,7 +55,7 @@ export default function HomePage() {
       router.push(`/result/${jobId}`);
     }
   }, [progress, jobId, router]);
-  async function onSubmit(e: FormEvent) {
+  async function onSubmit(e: ChangeEvent) {
     e.preventDefault();
     setErrorMsg(null);
     if (!fileA || !fileB) {

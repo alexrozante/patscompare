@@ -1,4 +1,11 @@
-@import "tailwindcss";
+/*
+ PATSCompare
+ globals.css
+ Main CSS styles
+ (c) PATS Technologies
+*/
+
+ @import "tailwindcss";
 
 :root {
   --background: #ffffff;
