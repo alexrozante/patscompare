@@ -11,13 +11,15 @@ import util from 'util';
 import { diffWordsWithSpace } from 'diff';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.js';
 import { join } from 'path';
-import { pool, log } from './db.js';
+import { pool, log, setLogLevel, LOG_NORMAL, LOG_VERBOSE, LOG_DEBUG } from './db.js';
 import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync, createWriteStream } from 'fs';
 import { spawn } from 'child_process';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 
 const { JaroWinklerDistance } = natural;
+
+setLogLevel(LOG_DEBUG);
 
 async function extractTextPerPage(pdfPath) {
   const data = new Uint8Array(readFileSync(pdfPath));
@@ -52,17 +54,26 @@ function textSimilarity(a, b) {
   return distance;
 }
 
-function matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA }) {
+function matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA, MAX_PAGES }) {
   const matches = [];
   let j = 0;
-  for (let i = 0; i < textA.length; i++) {
+  
+  let maxPagesA = MAX_PAGES && MAX_PAGES > 0 ? MAX_PAGES : textA.length;
+  if (MAX_PAGES > textA.length)
+    maxPagesA = textA.length;
+
+  let maxPagesB = MAX_PAGES && MAX_PAGES > 0 ? MAX_PAGES : textB.length;
+  if (MAX_PAGES > textB.length)
+    maxPagesB = textB.length;
+
+  for (let i = 0; i < maxPagesA; i++) {
     if (POSFIXA) {
       matches.push({ a: i, b: i, status: 'matched', textSim: 1 });
       continue;
     }
     let best = -1;
     let bestScore = 0;
-    for (let k = j; k <= Math.min(j + OFFSET, textB.length - 1); k++) {
+    for (let k = j; k <= Math.min(j + OFFSET, maxPagesB - 1); k++) {
       const sim = textSimilarity(textA[i], textB[k]);
       if (sim > bestScore) {
         bestScore = sim;
@@ -85,7 +96,7 @@ function matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA }) {
       matches.push({ a: i, status: 'deleted' });
     }
   }
-  while (j < textB.length) {
+  while (j < maxPagesB) {
     matches.push({ b: j, status: 'inserted' });
     j++;
   }
@@ -244,7 +255,7 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
   const bDir = join(tmpRoot, 'b'); 
   const outPagesDir = join(tmpRoot, 'pages');
 
-  log('compare', 'I', `comparacao ${jobId} iniciada.`);
+  log(LOG_NORMAL, 'compare', 'I', `comparacao ${jobId} iniciada.`);
 
   await ensureDir(aDir);
   await ensureDir(bDir);
@@ -253,8 +264,9 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
   const OFFSET = params.OFFSET ?? 3;
   const FATSIM = params.FATSIM ?? 0.7;
   const POSFIXA = params.POSFIXA ?? false;
+  const MAX_PAGES = params.MAX_PAGES ?? 0;
 
-  log('worker', 'I', `POSFIXA=${String(POSFIXA)}, OFFSET=${String(OFFSET)}, FATSIM=${String(FATSIM)}`);
+  log(LOG_VERBOSE, 'worker', 'I', `POSFIXA=${String(POSFIXA)}, OFFSET=${String(OFFSET)}, FATSIM=${String(FATSIM)}`);
 
   let matches = [];
   let totalPages = 0;
@@ -271,10 +283,14 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
       pdfToPngs(bPdf, bDir, 'b')
     ]);
 
-    log('worker', 'I', `comp ${jobId} - relacionando paginas...`);
-    matches = matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA });
+    log(LOG_VERBOSE, 'worker', 'I', `comp ${jobId} - relacionando paginas...`);
+    matches = matchPages(textA, textB, { OFFSET, FATSIM, POSFIXA, MAX_PAGES });
+    if (MAX_PAGES > 0 && matches.length > MAX_PAGES) {
+      matches = matches.slice(0, MAX_PAGES);
+    }
+
     totalPages = matches.length;
-    log('worker', 'I', `comp ${jobId} - ${totalPages} processadas (relacionamento).`);
+    log(LOG_VERBOSE, 'worker', 'I', `comp ${jobId} - ${totalPages} processadas (relacionamento).`);
 
     progressCb({ jobId, message: 'Processando páginas...', done: 0, total: totalPages, totalPages });
     let done = 0;
@@ -370,7 +386,7 @@ async function runCompareJob({ jobId = uuidv4(), aPdf, bPdf, params = {}, progre
     };
   } catch (err) {
     // bubble up error after ensuring caller can cleanup or inspect tmp dir
-    log('worker', 'E', `comp ${jobId}: ${String(err)}`);
+    log(LOG_NORMAL, 'worker', 'E', `comp ${jobId}: ${String(err)}`);
     throw err;
   }
 }

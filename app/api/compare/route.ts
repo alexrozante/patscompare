@@ -43,14 +43,18 @@ export async function POST(req: NextRequest) {
     const jobId = uuidv4();
 
     const OFFSET = Number(formData.get('OFFSET') ?? 3);
+
     const FATSIM = Number(formData.get('FATSIM') ?? 0.7);
+
     const POSFIXA_RAW = formData.get('POSFIXA');
     const POSFIXA =
       POSFIXA_RAW === 'true' ||
       POSFIXA_RAW === 'on' ||
       POSFIXA_RAW === '1';
 
-    const params = { OFFSET, FATSIM, POSFIXA };
+    const MAX_PAGES = Number(formData.get('MAX_PAGES') ?? 0);
+
+    const params = { OFFSET, FATSIM, POSFIXA, MAX_PAGES };
 
     const queue = new Queue('compare-queue', {
       connection: {

@@ -21,7 +21,7 @@ let logLevel = Number(process.env.LOG_LEVEL) || 1;  // 1=Basic, 2=Verbose, 3=Deb
  * @param level a number representing the desired level
  * @returns undefined
  */
-export function setLogLevel(level) {
+function setLogLevel(level) {
   try {
     const newLevel = Number(level)
     if (level > 0)
@@ -35,7 +35,7 @@ export function setLogLevel(level) {
  * Returns the active log level
  * @returns 0 = basic (normal), 1 = detailed (verbose) or 2 = debug
  */
-export function getLogLevel() {
+function getLogLevel() {
   return logLevel;
 }
 
