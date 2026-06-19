@@ -8,6 +8,8 @@ CREATE TABLE comparisons (
   id          UUID PRIMARY KEY,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  filename_a  TEXT NOT NULL,
+  filename_b  TEXT NOT NULL,
   status      TEXT NOT NULL, -- queued | running | done | failed
   input_a     TEXT NOT NULL,
   input_b     TEXT NOT NULL,

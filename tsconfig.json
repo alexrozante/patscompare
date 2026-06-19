@@ -30,6 +30,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "app/layout.tsx.original", "app/page.tsx.original"  ],
+, "app/layout.tsx.original", "app/page.tsx.original", "i18n.ts.disabled"  ],
   "exclude": ["node_modules"]
 }

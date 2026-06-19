@@ -1,37 +1,53 @@
 /**
  * PATSCompare
- * /app/layout.txt
+ * /app/[locale]/layout.tsx
  * Main app layout
  * (c) PATS Technologies
  */
+import { Rajdhani } from 'next/font/google';
 import './globals.css';
-import type { Metadata } from 'next';
-export const metadata: Metadata = {
-  title: 'PATS Compare',
-  description: 'PDF comparison service',
-};
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+import {getLocale, getTranslations} from 'next-intl/server';
+import { Header } from './header';
+import {Locale, NextIntlClientProvider} from 'next-intl';
+import LocaleSwitcher from './localeSwitcher';
+import {cookies} from 'next/headers';
+
+const rajdhani = Rajdhani({
+  weight: ['500', '700'],
+  subsets: ['latin'],
+  variable: '--font-rajdhani', // opcional para usar como variável CSS
+  display: 'swap'              // recomendado
+})
+
+export async function generateMetadata() {
+  const t = await getTranslations('RootLayout');
+  return {
+    title: 'PATS Compare',
+    description: 'PDF comparison service',
+  };
+}
+
+export default async function LocaleLayout({children}: LayoutProps<'/'>) {
+  const locale = await getLocale();
+
+  async function changeLocaleAction(locale: Locale) {
+    'use server';
+    const store = await cookies();
+    store.set('locale', locale);
+  }
+
   return (
-    <html lang="pt-BR">
-      <body className="min-h-screen bg-slate-50 black">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <header className="mb-6 flex items-center justify-between">
-            <div className="font-bold text-xl">PATS Compare</div>
-            <nav className="flex gap-4 text-sm">
-              <a href="/" className="hover:underline">
-                Nova comparação
-              </a>
-              <a href="/history" className="hover:underline">
-                Histórico
-              </a>
-            </nav>
-          </header>
-          {children}
-        </div>
+    <html lang={locale}>
+      <body className={`${rajdhani.variable} font-sans mx-auto w-[95%] min-h-screen flex flex-col bg-slate-50 text-black`}>
+        <NextIntlClientProvider locale={locale}>
+          <div className="flex justify-between items-center">
+            <Header />
+            {/* <LocaleSwitcher changeLocaleAction={changeLocaleAction} /> */}
+          </div>
+          <main className="flex-1 min-h-0">
+              {children}
+          </main>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

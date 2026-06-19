@@ -17,7 +17,7 @@ import { currentDateTime } from './currentDateTime.js';
 export function sysout(module, type, message, error=false) {
 
   const now = currentDateTime();
-  const strModule = String(module).padEnd(30);
+  const strModule = String(module).padEnd(20);
   const strMsg = String(message);
   const strMessage = strMsg.length > 120 ? strMsg.slice(0,120).concat('...') : strMsg;
   if (error)

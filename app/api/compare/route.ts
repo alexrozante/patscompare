@@ -37,6 +37,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Envie dois PDFs' }, { status: 400 });
     }
 
+    const filenameA = fileA.name;
+    const filenameB = fileB.name;
+
     const aPath = await saveFileFromForm(fileA, 'a');
     const bPath = await saveFileFromForm(fileB, 'b');
 
@@ -65,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     await queue.add(
       'compare',
-      { jobId, aPath, bPath, params },
+      { jobId, filenameA, filenameB, aPath, bPath, params },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },

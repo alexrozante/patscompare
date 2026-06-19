@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 type DiffPart = {
   type: 'added' | 'removed' | 'context';
@@ -25,16 +26,30 @@ type Match = {
 };
 
 type ResultResponse = {
+  created_at: string;
+  filename_a: string;
+  filename_b: string;
   totalPages: number;
   matches: Match[];
 };
 
+type PreviewKind = 'a' | 'b' | 'diff';
+type ZoomMode = 'percent' | 'width' | 'height';
+
 export default function ResultPage() {
+  const t = useTranslations('Result');
+
   const params = useParams();
   const jobId = params.jobId as string;
   const [data, setData] = useState<ResultResponse | null>(null);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Modal de zoom
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [zoomKind, setZoomKind] = useState<PreviewKind>('a');
+  const [zoomMode, setZoomMode] = useState<ZoomMode>('percent');
+  const [zoomPercent, setZoomPercent] = useState<number>(100);
 
   useEffect(() => {
     async function load() {
@@ -46,34 +61,49 @@ export default function ResultPage() {
           setCurrent(0);
           setLoading(false);
         }
-      } catch(e) {
+      } catch (e) {
         console.log('Error:', String(e));
       }
     }
     load();
   }, [jobId]);
 
+  // ESC fecha modal
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setZoomOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   if (loading && !data) {
-    return <p>Resultado nao localizado</p>;
+    return <p>{t('noResult')}</p>;
   }
 
   if (loading || !data) {
-    return <p>Carregando resultado...</p>;
+    return <p>{`${t('loadingResult')}...`}</p>;
   }
 
-  const { matches, totalPages } = data;
-  
+  const { created_at, filename_a, filename_b, matches, totalPages } = data;
+
   const m = matches[current];
-  
+
   const diffPagesCount = matches.filter(
     p => p.status === 'inserted' || p.status === 'deleted' || p.hasImageDiff
   ).length;
 
   const textSimStr =
-    m.textSim !== undefined ? `${(m.textSim * 100).toFixed(2)}%` : '-';
+    m.textSim !== undefined
+      ? `${(m.textSim * 100).toFixed(2).replace('.', ',')}%`
+      : '-';
 
   const imageSimStr =
-    m.imageSim !== undefined ? `${(m.imageSim * 100).toFixed(2)}%` : '-';
+    m.imageSim !== undefined
+      ? `${(m.imageSim * 100).toFixed(2).replace('.', ',')}%`
+      : '-';
 
   function go(delta: number) {
     setCurrent(prev => {
@@ -109,140 +139,318 @@ export default function ResultPage() {
       }
     }
   }
-  
+
+  function openZoom(kind: PreviewKind) {
+    setZoomKind(kind);
+    setZoomMode('percent');
+    setZoomPercent(100);
+    setZoomOpen(true);
+  }
+
+  const zoomSrc =
+    zoomKind === 'a'
+      ? `/api/preview/${jobId}/${current}-a.png`
+      : zoomKind === 'b'
+      ? `/api/preview/${jobId}/${current}-b.png`
+      : `/api/preview/${jobId}/${current}-diff.png`;
+
+  let zoomImgStyle: React.CSSProperties = {};
+  if (zoomMode === 'percent') {
+    zoomImgStyle = { width: `${zoomPercent}%`, height: 'auto' };
+  } else if (zoomMode === 'width') {
+    zoomImgStyle = { width: '100%', height: 'auto' };
+  } else if (zoomMode === 'height') {
+    zoomImgStyle = { height: '100%', width: 'auto' };
+  }
+
+  // IMPORTANTE: assuma que o layout.tsx já faz:
+  // <body className="mx-auto w-[95%] min-h-screen flex flex-col">
+  // <main className="flex-1 min-h-0"> {children} </main>
+
   return (
-    <main className="space-y-4">
-      <section className="rounded-lg border bg-white p-4 shadow-sm text-black">
-        <h1 className="mb-2 text-lg font-semibold">Resultado</h1>
-        <p className="text-sm text-slate-700">
-          Job: <span className="font-mono">{jobId}</span>
-        </p>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm">
-          <div>Total de páginas: {totalPages}</div>
-          <div>Páginas com diferenças: {diffPagesCount}</div>
+    <main className="flex h-full flex-col text-black border-gray-400">
+      {/* Painel superior em uma linha */}
+      <section className="mb-4 rounded-lg border bg-white px-4 py-2 shadow-sm text-black">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span>{`${t('PDF1')}: `}<span className="font-semibold">{filename_a}</span></span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span>{`${t('PDF2')}: `}<span className="font-semibold">{filename_b}</span></span>
+        </div>
+        <hr className="text-gray-300 mt-2 mb-2"></hr>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span>{`${t('startedAt')}: `}</span><span className="font-semibold">{new Date(created_at).toLocaleString()}</span>
+          <span className="text-gray-300">|</span>
+          <span>{`${t('totalPages')}: `}</span><span className="font-semibold">{totalPages}</span>
+          <span className="text-gray-300">|</span>
+          <span>{`${t('pagesWithDiff')}: `}</span><span className="font-semibold">{diffPagesCount}</span>
         </div>
       </section>
-      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+
+      {/* Painel principal (navegação + previews + texto) ocupando o espaço livre */}
+      <section className="mb-2 flex flex-1 flex-col space-y-3 rounded-lg border bg-white p-4 shadow-sm min-h-0">
         {/* Navegação */}
-        <div className="flex flex-wrap items-center gap-2 text-sm text-black">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <button
             onClick={() => setCurrent(0)}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             ⏮
           </button>
           <button
             onClick={() => goPrevDiff()}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             ⏪ Dif
           </button>
           <button
             onClick={() => go(-1)}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             ◀
           </button>
           <span className="mx-2 text-xs">
-            Página {current + 1} / {matches.length}
+            {`${t('page')} ${current + 1} / ${matches.length}`}
           </span>
           <button
             onClick={() => go(1)}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             ▶
           </button>
           <button
             onClick={() => goNextDiff()}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             Dif ⏩
           </button>
           <button
             onClick={() => setCurrent(matches.length - 1)}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-2 py-1 text-xs bg-amber-600 border-amber-500"
           >
             ⏭
           </button>
           <a
-            href={`/download/${jobId}`}
-            className="ml-auto rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+            href={`/api/result/download/${jobId}`}
+            className="ml-auto rounded bg-amber-600 border-amber-500 px-3 py-1 text-xs font-medium text-black hover:bg-amber-400"
           >
-            Baixar PDF dif
+            Download
           </a>
         </div>
-        {/* Metadados */}
-        <div className="rounded border bg-slate-50 p-3 text-xs space-y-1 text-black">
-          <div>
-            <span className="font-semibold">Status:</span> {m.status}
-          </div>
-          <div>
-            <span className="font-semibold">Página A:</span>{' '}
-            {m.a !== undefined ? m.a + 1 : '-'}
-          </div>
-          <div>
-            <span className="font-semibold">Página B:</span>{' '}
-            {m.b !== undefined ? m.b + 1 : '-'}
-          </div>
-          <div>
-            <span className="font-semibold">Similaridade texto:</span>{' '}
-            {textSimStr}
-          </div>
-          <div>
-            <span className="font-semibold">Similaridade imagem:</span>{' '}
-            {imageSimStr}
-          </div>
-        </div>
-        {/* Área de preview */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <div className="mb-1 text-xs font-medium">Página A</div>
-            <div className="h-80 overflow-auto border bg-slate-100">
-              <img
-                src={`/api/preview/${jobId}/${current}-a.png?${Date.now()}`}
-                alt="Página A"
-                className="block w-full"
-              />
-            </div>
-          </div>
-          <div>
-            <div className="mb-1 text-xs font-medium">Página B</div>
-            <div className="h-80 overflow-auto border bg-slate-100">
-              <img
-                src={`/api/preview/${jobId}/${current}-b.png?${Date.now()}`}
-                alt="Página B"
-                className="block w-full"
-              />
-            </div>
-          </div>
-          <div>
-            <div className="mb-1 text-xs font-medium">Diferenças</div>
-            <div className="h-80 overflow-auto border bg-slate-100">
-              <img
-                src={`/api/preview/${jobId}/${current}-diff.png?${Date.now()}`}
-                alt="Diff"
-                className="block w-full"
-              />
-            </div>
+
+        {/* Metadados em uma linha, percentuais à direita */}
+        <div className="rounded border-gray-400 border bg-slate-50 px-3 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full">
+            <span className="font-semibold">
+              <span className="font-normal">{`${t('status')}:`}</span> {m.status}
+            </span>
+            <span className="font-semibold">
+              <span className="font-normal">{`${t('PDF1')} ${t('page')}:`}</span>{' '}
+              {m.a !== undefined ? m.a + 1 : '-'}
+            </span>
+            <span className="font-semibold">
+              <span className="font-normal">{`${t('PDF2')} ${t('page')}:`}</span>{' '}
+              {m.b !== undefined ? m.b + 1 : '-'}
+            </span>
+
+            {/* empurra percentuais para a direita */}
+            <span className="flex-1" />
+
+            <span className="flex items-center gap-1">
+              <span className="font-semibold">{`${t('textSimilarity')}:`}</span>
+              <span className="inline-block w-16 text-right">
+                {textSimStr}
+              </span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="font-semibold">{`${t('generalSimilarity')}:`}</span>
+              <span className="inline-block w-16 text-right">
+                {imageSimStr}
+              </span>
+            </span>
           </div>
         </div>
-        {/* Texto diff */}
-        <div>
-          <div className="mb-1 text-xs font-medium">Diferenças de texto</div>
-          <div className="max-h-64 overflow-auto rounded border bg-slate-50 p-3 text-xs font-mono">
-            {m.diffText?.map((part, idx) => {
-              let cls = 'diff-context';
-              if (part.type === 'added') cls = 'diff-added';
-              else if (part.type === 'removed') cls = 'diff-removed';
-              return (
-                <span key={idx} className={cls}>
-                  {part.value}
-                </span>
-              );
-            })}
+
+        {/* Painel que ocupa toda a área livre: 3 previews + diffs de texto */}
+        <div className="flex flex-1 flex-col min-h-0 gap-3">
+          {/* 3 previews ajustáveis com o redimensionamento da janela */}
+          <div className="grid flex-1 min-h-0 gap-4 md:grid-cols-3">
+            <div className="flex min-h-0 flex-col">
+              <div className="mb-1 flex items-center text-xs font-medium">
+                <span>{`${t('PDF1')} ${t('page')}:`}&nbsp;&nbsp;</span>
+                <button
+                  type="button"
+                  onClick={() => openZoom('a')}
+                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                  title="Zoom"
+                >
+                  👁
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <img
+                  src={`/api/preview/${jobId}/${current}-a.png?${Date.now()}`}
+                  alt="Página A"
+                  className="block w-full"
+                />
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-col">
+              <div className="mb-1 flex items-center text-xs font-medium">
+                <span>{`${t('PDF2')} ${t('page')}:`}&nbsp;&nbsp;</span>
+                <button
+                  type="button"
+                  onClick={() => openZoom('b')}
+                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                  title="Zoom"
+                >
+                  👁
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <img
+                  src={`/api/preview/${jobId}/${current}-b.png?${Date.now()}`}
+                  alt="Página B"
+                  className="block w-full"
+                />
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-col">
+              <div className="mb-1 flex items-center text-xs font-medium">
+                <span>{`${t('pageWithDiff')}`}&nbsp;&nbsp;</span>
+                <button
+                  type="button"
+                  onClick={() => openZoom('diff')}
+                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                  title="Zoom"
+                >
+                  👁
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <img
+                  src={`/api/preview/${jobId}/${current}-diff.png?${Date.now()}`}
+                  alt="Diff"
+                  className="block w-full"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Diferenças de texto (altura ampliada, com quebras de linha e estilo diff) */}
+          <div className="flex flex-col">
+            <div className="mb-1 text-xs font-medium">{t('textDiffs')}</div>
+            <div className="h-50 overflow-auto rounded border border-gray-400 bg-slate-50 p-3 text-xs font-mono whitespace-pre-wrap">
+              {m.diffText?.map((part, idx) => {
+                let cls = 'diff-context';
+                let prefix = '';
+                if (part.type === 'added') {
+                  cls = 'diff-added';
+                  prefix = '+ ';
+                } else if (part.type === 'removed') {
+                  cls = 'diff-removed';
+                  prefix = '- ';
+                }
+                return (
+                  <span key={idx} className={cls}>
+                    {prefix}
+                    {part.value}
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Modal de zoom */}
+      {zoomOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="relative max-h-[95vh] max-w-[95vw] rounded-md bg-white p-3 shadow-lg">
+            <p>
+              {`${t('pageOf')} ${zoomKind.toUpperCase() === 'DIFF' ? 'Diferenças' : zoomKind.toUpperCase()}`}
+            </p>
+            <button
+              type="button"
+              className="absolute right-2 top-2 rounded px-2 text-xs bg-amber-500 hover:bg-amber-300"
+              onClick={() => setZoomOpen(false)}
+            >
+              x
+            </button>
+
+            <div className="mb-2 rounded p-1 flex flex-wrap items-center gap-2 text-xs bg-stone-200">
+              <span className="font-semibold">{`${t('zoom')}:`}</span>
+              <select
+                className="rounded border px-1 py-0.5 bg-white border-stone-400"
+                value={zoomMode}
+                onChange={e =>
+                  setZoomMode(e.target.value as ZoomMode)
+                }
+              >
+                <option value="percent">{`${t('percent')}`}</option>
+                <option value="width">{`${t('width')}`}</option>
+                <option value="height">{`${t('height')}`}</option>
+              </select>
+
+              {zoomMode === 'percent' && (
+                <>
+                  <select
+                    className="rounded border px-1 py-0.5 bg-white border-stone-400"
+                    value={zoomPercent}
+                    onChange={e =>
+                      setZoomPercent(
+                        Math.min(
+                          500,
+                          Math.max(1, Number(e.target.value) || 100)
+                        )
+                      )
+                    }
+                  >
+                    <option value={100}>100%</option>
+                    <option value={75}>75%</option>
+                    <option value={50}>50%</option>
+                    <option value={25}>25%</option>
+                  </select>
+                  <span>|</span>
+                  <label className="flex items-center gap-1">
+                    <span className="text-[11px]">{`${t('custom')}:`}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={zoomPercent}
+                      onChange={e =>
+                        setZoomPercent(
+                          Math.min(
+                            500,
+                            Math.max(1, Number(e.target.value) || 100)
+                          )
+                        )
+                      }
+                      className="w-12 rounded border px-1 py-0.5 text-right text-xs bg-white border-stone-400"
+                    />
+                    <span>%</span>
+                  </label>
+                </>
+              )}
+
+              {zoomMode === 'width' && <span>{`(${t('adjustToWidth')})`}</span>}
+              {zoomMode === 'height' && <span>{`(${t('adjustToHeight')})`}</span>}
+            </div>
+
+            <div className="max-h-[85vh] max-w-[90vw] overflow-auto border bg-slate-100">
+              <img
+                src={zoomSrc}
+                alt="Zoom"
+                style={zoomImgStyle}
+                className="block"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

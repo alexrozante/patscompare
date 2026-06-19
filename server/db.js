@@ -12,7 +12,7 @@ export const LOG_NORMAL = 1;
 export const LOG_VERBOSE = 2;
 export const LOG_DEBUG = 3;
 
-let logLevel = Number(process.env.LOG_LEVEL) || 1;  // 1=Basic, 2=Verbose, 3=Debug
+let logLevel = LOG_NORMAL;  // 1=Basic, 2=Verbose, 3=Debug
 
 /**
  * Sets the application log level:
@@ -50,22 +50,21 @@ function getLogLevel() {
  * @param {*} toConsole true to display the message in the server console. Default = true
  * @returns The UUID of the log inserted in the database or null
  */
-function log(level, module, type, message, save=true, toConsole=true) {
-  if (level > logLevel)
-    return Promise.resolve(null);
+async function log(level, module, type, message, save=true, toConsole=true) {
+  if (level > logLevel) 
+    return null;
 
-  if (!save) {
+  if (!save || toConsole) 
     sysout(module, type, message, type === 'E');
-    return Promise.resolve(null);
-  }
 
-  return retry(async () => pool.query(
-    'INSERT INTO log (id, module, type, message) VALUES ($1, $2, $3, $4) RETURNING id', [uuidv4(), module, type, message]
-  )).then((res) => {
-    if (toConsole) 
-      sysout(module, type, message, type === 'E');
-    return res.rows[0].id;
-  });
+  if (!save) 
+    return null;
+
+  await retry(async () => pool.query(
+    'INSERT INTO log (id, module, type, message) VALUES ($1, $2, $3, $4) RETURNING id', 
+    [uuidv4(), module, type, message]
+  ));
+  return null;
 }
 
 // Database connection
@@ -79,7 +78,7 @@ const pool = new Pool({
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
   connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5000)
 });
-log(LOG_DEBUG, 'db', 'I', 'PG Connection (pool): ' + JSON.stringify(pool), true, false);
+await log(LOG_DEBUG, 'db', 'I', 'PG Connection (pool): ' + JSON.stringify(pool), true, false);
 
 /**
  * Calls the specified function N times until it begin succeed, waiting the specified delay between attempts.
@@ -110,12 +109,12 @@ async function retry(fn, attempts = 5, delay = 200) {
  * @param param0 Object
  * @returns The UUID of the inserted record
  */
-async function createComparison({ id, inputA, inputB, status = 'queued' }) {
+async function createComparison({ id, filenameA, filenameB, inputA, inputB, status = 'queued' }) {
   const res = await retry(() => pool.query(
-    'INSERT INTO comparisons (id, status, input_a, input_b) VALUES ($1, $2, $3, $4) RETURNING *',
-    [id, status, inputA, inputB]
+    'INSERT INTO comparisons (id, status, filename_a, filename_b, input_a, input_b) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    [id, status, filenameA, filenameB, inputA, inputB]
   ));
-  log(LOG_DEBUG, 'db', 'I', `Record inserted in comparisons. id=${id}, status=${status}, input_a=${inputA}, input_b=${inputB}`);
+  await log(LOG_DEBUG, 'db', 'I', `Record inserted in comparisons. id=${id}, status=${status}, filename_a=${filenameA}, filename_b=${filenameB}, input_a=${inputA}, input_b=${inputB}`);
   return res.rows[0];
 }
 
@@ -143,7 +142,7 @@ async function updateComparison(id, fields = {}) {
   const values = [id, ...keys.map(k => fields[k])];
   const qry = `UPDATE comparisons SET ${set}, updated_at = now() WHERE id = $1 RETURNING *`;
   const res = await retry(() => pool.query(qry, values));
-  log(LOG_DEBUG, 'db', 'I', `UPDATE executed: ${qry}`);
+  await log(LOG_DEBUG, 'db', 'I', `UPDATE executed: ${qry}`);
   return res.rows[0];
 }
 
