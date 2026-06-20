@@ -27,11 +27,12 @@ export default function HomePage() {
 
   const [fileA, setFileA] = useState<File | null>(null);
   const [fileB, setFileB] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
   const [offset, setOffset] = useState(3);
   const [fatSim, setFatSim] = useState(70);
   const [posfixa, setPosfixa] = useState(true);
   const [maxPages, setMaxPages] = useState(0);
-
+  
   const [jobId, setJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,7 +50,7 @@ export default function HomePage() {
     }
 
     const handler = (data: ProgressEvent) => {
-      console.log(t('socketProgress'), data);
+      //console.log(t('socketProgress'), data);
       setProgress(prev => ({ ...(prev || {}), ...data }));
     };
 
@@ -88,6 +89,7 @@ export default function HomePage() {
 
     try {
       const fd = new FormData();
+      fd.append('title', title);
       fd.append('a', fileA);
       fd.append('b', fileB);
       fd.append('OFFSET', String(offset));
@@ -109,9 +111,9 @@ export default function HomePage() {
       const id = json.jobId as string;
       setJobId(id);
 
-      if (socket) {
+      if (socket) 
         socket.emit('join', id);
-      }
+
     } catch (err: any) {
       setErrorMsg(err.message || t('errorSending'));
       setIsSubmitting(false);
@@ -134,8 +136,18 @@ export default function HomePage() {
       <section className="rounded-lg border border-gray-400 bg-white p-4 shadow-sm text-black">
         <h1 className="mb-4 text-lg font-semibold">{t('newComparison')}</h1>
 
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
+        <form className="space-y-2" onSubmit={onSubmit}>
+          <div className="grid">
+            <label className="w-full text-sm font-medium mb-1">{t('title')}</label>
+            <input
+              type="text"
+              maxLength={200}
+              value={title}
+              onChange={e => setTitle(e.target.value || '')}
+              className="w-200 rounded-md border border-gray-400 px-2 py-1 text-sm"
+            />
+          </div>
+          <div className="grid gap-2">
             <div>
               <label className="block text-sm font-medium mb-1">{t('PDF1')}</label>
               <input
@@ -157,7 +169,6 @@ export default function HomePage() {
               />
             </div>
           </div>
-
           <div>
             <label className="block text-sm font-medium mb-1">
               {t('maxPagesComp')}
@@ -168,13 +179,11 @@ export default function HomePage() {
               max={9_999_999}
               value={maxPages}
               onChange={e => setMaxPages(Number(e.target.value || 0))}
-              className="w-50 rounded-md border border-gray-400 px-2 py-1 text-sm"
+              className="w-30 rounded-md border border-gray-400 px-2 py-1 text-sm"
             />
             <p className="mt-1 text-xs text-slate-500">{`0 = ${t('allPages')}.`}</p>
           </div>
-
           <div className="grid gap-4 md:grid-cols-3">
-
             <div className="flex items-end col-span-3">
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
@@ -186,7 +195,6 @@ export default function HomePage() {
                 {t('strictPosComp')}
               </label>
             </div>
-
             {!posfixa && (
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -202,7 +210,6 @@ export default function HomePage() {
                 />
               </div>
             )}
-
             {!posfixa && (
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -219,11 +226,9 @@ export default function HomePage() {
               </div>
             )}
           </div>
-
           {errorMsg && (
             <p className="text-sm text-red-600">{errorMsg}</p>
           )}
-
           <button
             type="submit"
             disabled={!canCompare}
@@ -233,7 +238,6 @@ export default function HomePage() {
           </button>
         </form>
       </section>
-
       {jobId && (
         <section className="rounded-lg border bg-white p-4 shadow-sm text-black">
           <div className="flex items-center justify-between mb-2">

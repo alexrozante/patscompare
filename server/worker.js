@@ -15,7 +15,7 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import dotenv from 'dotenv';
 
-async function worker() {
+export async function worker() {
 
   dotenv.config({ path: '.env.local' });
   if (! process.env.WORKER_LOG_LEVEL) dotenv.config({ path: '.env' });
@@ -54,125 +54,144 @@ async function worker() {
     });
   }
 
-  const worker = new Worker('compare-queue', async job => {
+  const worker = new Worker(
+    'compare-queue', 
+    async (job) => {
+      const { 
+        jobId, 
+        title, 
+        filenameA, 
+        filenameB, 
+        aPath, 
+        bPath, 
+        aUrl, 
+        bUrl, 
+        params 
+      } = job.data;
 
-    const { jobId, filenameA, filenameB, aUrl, bUrl, aPath, bPath, params } = job.data;
+      // Vale o menor entre a quantidade de paginas requisitadas pela UI e o configurado no ambiente (WORKER_MAX_PAGES)
+      const envMaxPages = Number(process.env.WORKER_MAX_PAGES || 0);
+      const paramMaxPages = Number(params.MAX_PAGES || 0); 
+      params.MAX_PAGES = paramMaxPages > 0 && paramMaxPages < envMaxPages ? paramMaxPages: envMaxPages;
 
-    // Vale o menor entre a quantidade de paginas requisitadas pela UI e o configurado no ambiente (WORKER_MAX_PAGES)
-    const envMaxPages = Number(process.env.WORKER_MAX_PAGES || 0);
-    const paramMaxPages = Number(params.MAX_PAGES || 0); 
-    params.MAX_PAGES = paramMaxPages > 0 && paramMaxPages < envMaxPages ? paramMaxPages: envMaxPages;
+      const workerId = process.env.WORKER_ID || '1';
+      const compId = jobId || uuidv4();
 
-    const workerId = process.env.WORKER_ID || '1';
-    const compId = jobId || uuidv4();
+      await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} INICIADA ***`);
+      await log(LOG_VERBOSE, 'worker', 'I', `MAX_PAGES=${params.MAX_PAGES}, POSFIXA=${params.POSFIXA}, OFFSET=${params.OFFSET}, FATSIM=${params.FATSIM}`);
 
-    await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} INICIADA ***`);
-    await log(LOG_VERBOSE, 'worker', 'I', `MAX_PAGES=${params.MAX_PAGES}, POSFIXA=${params.POSFIXA}, OFFSET=${params.OFFSET}, FATSIM=${params.FATSIM}`);
+      await createComparison({ id: compId, title, filenameA, filenameB, inputA: aPath || aUrl, inputB: bPath || bUrl, status: 'running' });
+      await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} registrou ${compId} no BD.`);
 
-    await createComparison({ id: compId, filenameA, filenameB, inputA: aPath || aUrl, inputB: bPath || bUrl, status: 'running' });
-    await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} registrou ${compId} no BD.`);
+      const jobsRoot = path.join(process.cwd(), 'data', 'jobs');
+      fs.mkdirSync(jobsRoot, { recursive: true });
 
-    const jobsRoot = path.join(process.cwd(), 'data', 'jobs');
-    fs.mkdirSync(jobsRoot, { recursive: true });
+      const jobDir = path.join(jobsRoot, compId);
+      fs.mkdirSync(jobDir, { recursive: true });
 
-    const jobDir = path.join(jobsRoot, compId);
-    fs.mkdirSync(jobDir, { recursive: true });
+      const localA = path.join(jobDir, path.basename(aPath));
+      const localB = path.join(jobDir, path.basename(bPath));
 
-    const localA = path.join(jobDir, path.basename(aPath));
-    const localB = path.join(jobDir, path.basename(bPath));
+      try {
+        if (isUrl(aUrl)) {
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo A.`);
+          await downloadToFile(aUrl, localA);
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
 
-    try {
-      if (isUrl(aUrl)) {
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo A.`);
-        await downloadToFile(aUrl, localA);
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
+        } else if (aPath) {
+          copyFileSync(aPath, localA);
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
 
-      } else if (aPath) {
-        copyFileSync(aPath, localA);
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo A recebido.`);
-
-      } else {
-        await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${compId} - arquivo A nao localizado.`);
-        throw new Error('Missing input A');
-      }
-      if (isUrl(bUrl)) {
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo B.`);
-        await downloadToFile(bUrl, localB);
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
-
-      } else if (bPath) {
-        copyFileSync(bPath, localB);
-        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
-
-      } else {
-        await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${compId} - arquivo B nao localizado.`);
-        throw new Error('Missing input B');
-      }
-
-      // progress callback mapping to Bull job progress
-      const progressCb = async (p) => {
-        try {
-          await job.updateProgress(Object.assign({ jobId }, p));
-        } catch (e) {
-          await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${jobId} - falha ao atualizar progresso do job (worker.progressCb)`);
-          await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${jobId} - ${String(e)}`);
+        } else {
+          await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${compId} - arquivo A nao localizado.`);
+          throw new Error('Missing input A');
         }
-      };
 
-      // call the refactored compare function
-      const result = await 
-        runCompareJob(
-          getLogLevel(), 
-          {
-            jobId,
-            aPdf: localA,
-            bPdf: localB,
-            params: params || {},
-            progressCb,
-            outputDir: jobDir
+        if (isUrl(bUrl)) {
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - realizando download do arquivo B.`);
+          await downloadToFile(bUrl, localB);
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
+
+        } else if (bPath) {
+          copyFileSync(bPath, localB);
+          await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - arquivo B recebido.`);
+
+        } else {
+          await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${compId} - arquivo B nao localizado.`);
+          throw new Error('Missing input B');
+        }
+
+        // progress callback mapping to Bull job progress
+        const progressCb = async (p) => {
+          try {
+            await job.updateProgress(Object.assign({ jobId }, p));
+          } catch (e) {
+            await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${jobId} - falha ao atualizar progresso do job (worker.progressCb)`);
+            await log(LOG_DEBUG, 'worker', 'E', `worker ${workerId} comp ${jobId} - ${String(e)}`);
           }
-        );
+        };
 
-      // Optionally: upload artifacts to S3 here (not implemented)
-      // result.artifacts contains local paths: previews/resultPdf/workspace
-      // upload artifacts to S3 if desired (not implemented here) and record artifacts paths
-      const artifacts = {
-        previews: result.artifacts.previews,
-        resultPdf: result.artifacts.resultPdf,
-        workspace: result.artifacts.workspace
-      };
+        // call the refactored compare function
+        const result = await 
+          runCompareJob(
+            getLogLevel(), 
+            {
+              jobId,
+              title,
+              aPdf: localA,
+              bPdf: localB,
+              params: params || {},
+              progressCb,
+              outputDir: jobDir
+            }
+          );
 
-      await updateComparison(compId, {
-        status: 'done',
-        total_pages: result.totalPages,
-        matches: JSON.stringify(result.matches),
-        artifacts: JSON.stringify(artifacts),
-        error: null
-      });
-      
-      await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - resultados salvos no BD.`);
+        // Optionally: upload artifacts to S3 here (not implemented)
+        // result.artifacts contains local paths: previews/resultPdf/workspace
+        // upload artifacts to S3 if desired (not implemented here) and record artifacts paths
+        const artifacts = {
+          previews: result.artifacts.previews,
+          resultPdf: result.artifacts.resultPdf,
+          workspace: result.artifacts.workspace
+        };
 
-      await job.updateProgress({ jobId, ready: true, done: result.totalPages, total: result.totalPages, message: 'Ok' });
+        await updateComparison(compId, {
+          status: 'done',
+          total_pages: result.totalPages,
+          page_diffs: result.page_diffs,
+          text_diffs: result.text_diffs,
+          matches: result.matches,
+          artifacts: artifacts,
+          error: null
+        });
+        
+        await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - resultados salvos no BD.`);
 
-      await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} FINALIZADA ***`);
+        await job.updateProgress({ jobId, ready: true, done: result.totalPages, total: result.totalPages, message: 'Ok' });
 
-      return { 
-        success: true, 
-        totalPages: result.totalPages, 
-        matches: result.matches, 
-        artifacts: result.artifacts 
-      };
+        await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} FINALIZADA ***`);
 
-    } catch (err) {
-      await updateComparison(compId, { status: 'failed', error: String(err) });
-      await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} ERRO: ${String(err)} ***`);
-      throw err;
+        return { 
+          success: true, 
+          totalPages: result.totalPages, 
+          page_diffs: result.page_diffs,
+          text_diffs: result.text_diffs,
+          matches: result.matches, 
+          artifacts: result.artifacts 
+        };
+
+      } catch (err) {
+        await updateComparison(compId, { status: 'failed', error: String(err) });
+        await log(LOG_VERBOSE, 'worker', 'I', `worker ${workerId} comparacao id ${compId} ERRO: ${String(err)} ***`);
+        throw err;
+      }
+    }, 
+    { 
+      connection, 
+      concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10), 
+      lockDuration: 30 * 60 * 1000 
     }
-  }, { 
-    connection, 
-    concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10), 
-    lockDuration: 30 * 60 * 1000 
-  });
+  );
 
   // graceful shutdown
   async function shutdown() {
@@ -200,5 +219,5 @@ async function worker() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
+
 worker();
-//export default { worker };

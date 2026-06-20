@@ -109,12 +109,12 @@ async function retry(fn, attempts = 5, delay = 200) {
  * @param param0 Object
  * @returns The UUID of the inserted record
  */
-async function createComparison({ id, filenameA, filenameB, inputA, inputB, status = 'queued' }) {
+async function createComparison({ id, title, filenameA, filenameB, inputA, inputB, status = 'queued' }) {
   const res = await retry(() => pool.query(
-    'INSERT INTO comparisons (id, status, filename_a, filename_b, input_a, input_b) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-    [id, status, filenameA, filenameB, inputA, inputB]
+    'INSERT INTO comparisons (id, title, status, filename_a, filename_b, input_a, input_b) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+    [id, title, status, filenameA, filenameB, inputA, inputB]
   ));
-  await log(LOG_DEBUG, 'db', 'I', `Record inserted in comparisons. id=${id}, status=${status}, filename_a=${filenameA}, filename_b=${filenameB}, input_a=${inputA}, input_b=${inputB}`);
+  await log(LOG_DEBUG, 'db', 'I', `Record inserted in comparisons. id=${id}, title=${title}, status=${status}, filename_a=${filenameA}, filename_b=${filenameB}, input_a=${inputA}, input_b=${inputB}`);
   return res.rows[0];
 }
 
@@ -134,12 +134,30 @@ async function getComparison(id) {
  * @param {*} fields an object with fieldnames as keys and their respective values
  * @returns the updated record as an object
  */
+const JSON_FIELDS = new Set(['matches', 'artifacts']);
+
 async function updateComparison(id, fields = {}) {
   const keys = Object.keys(fields);
   if (keys.length === 0) 
     return;
-  const set = keys.map((k, i) => `${k}=$${i+2}`).join(', ');
-  const values = [id, ...keys.map(k => fields[k])];
+
+  const set = keys
+    .map((k, i) =>
+      JSON_FIELDS.has(k)
+        ? `${k}=$${i + 2}::jsonb`  // ou ::json se a coluna for json
+        : `${k}=$${i + 2}`
+    )
+    .join(', ');
+
+  const values = [
+    id,
+    ...keys.map(k =>
+      JSON_FIELDS.has(k)
+        ? JSON.stringify(fields[k])  // garante string JSON válida
+        : fields[k]
+    ),
+  ];
+
   const qry = `UPDATE comparisons SET ${set}, updated_at = now() WHERE id = $1 RETURNING *`;
   const res = await retry(() => pool.query(qry, values));
   await log(LOG_DEBUG, 'db', 'I', `UPDATE executed: ${qry}`);

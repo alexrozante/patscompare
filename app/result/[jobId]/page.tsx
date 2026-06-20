@@ -26,10 +26,13 @@ type Match = {
 };
 
 type ResultResponse = {
+  title: string;
   created_at: string;
   filename_a: string;
   filename_b: string;
   totalPages: number;
+  page_diffs: number;
+  text_diffs: number;
   matches: Match[];
 };
 
@@ -40,8 +43,11 @@ export default function ResultPage() {
   const t = useTranslations('Result');
 
   const params = useParams();
+  
   const jobId = params.jobId as string;
+  
   const [data, setData] = useState<ResultResponse | null>(null);
+  
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -87,13 +93,18 @@ export default function ResultPage() {
     return <p>{`${t('loadingResult')}...`}</p>;
   }
 
-  const { created_at, filename_a, filename_b, matches, totalPages } = data;
+  const { 
+    title, 
+    created_at, 
+    filename_a, 
+    filename_b, 
+    matches, 
+    totalPages, 
+    page_diffs, 
+    text_diffs 
+  } = data;
 
   const m = matches[current];
-
-  const diffPagesCount = matches.filter(
-    p => p.status === 'inserted' || p.status === 'deleted' || p.hasImageDiff
-  ).length;
 
   const textSimStr =
     m.textSim !== undefined
@@ -172,6 +183,9 @@ export default function ResultPage() {
       {/* Painel superior em uma linha */}
       <section className="mb-4 rounded-lg border bg-white px-4 py-2 shadow-sm text-black">
         <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-semibold text-xl">{title}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <span>{`${t('PDF1')}: `}<span className="font-semibold">{filename_a}</span></span>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -183,10 +197,11 @@ export default function ResultPage() {
           <span className="text-gray-300">|</span>
           <span>{`${t('totalPages')}: `}</span><span className="font-semibold">{totalPages}</span>
           <span className="text-gray-300">|</span>
-          <span>{`${t('pagesWithDiff')}: `}</span><span className="font-semibold">{diffPagesCount}</span>
+          <span>{`${t('pagesWithDiff')}: `}</span><span className="font-semibold">{page_diffs | 0}</span>
+          <span className="text-gray-300">|</span>
+          <span>{`${t('textDiffs')}: `}</span><span className="font-semibold">{text_diffs | 0}</span>
         </div>
       </section>
-
       {/* Painel principal (navegação + previews + texto) ocupando o espaço livre */}
       <section className="mb-2 flex flex-1 flex-col space-y-3 rounded-lg border bg-white p-4 shadow-sm min-h-0">
         {/* Navegação */}
@@ -237,31 +252,32 @@ export default function ResultPage() {
             Download
           </a>
         </div>
-
         {/* Metadados em uma linha, percentuais à direita */}
         <div className="rounded border-gray-400 border bg-slate-50 px-3 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full">
+            {/* Status */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('status')}:`}</span> {m.status}
             </span>
+            {/* PDF 1 Page */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('PDF1')} ${t('page')}:`}</span>{' '}
               {m.a !== undefined ? m.a + 1 : '-'}
             </span>
+            {/* PDF 2 Page */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('PDF2')} ${t('page')}:`}</span>{' '}
               {m.b !== undefined ? m.b + 1 : '-'}
             </span>
-
-            {/* empurra percentuais para a direita */}
             <span className="flex-1" />
-
+            {/* Text similarity */}
             <span className="flex items-center gap-1">
               <span className="font-semibold">{`${t('textSimilarity')}:`}</span>
               <span className="inline-block w-16 text-right">
                 {textSimStr}
               </span>
             </span>
+            {/* Image (general) similarity */}
             <span className="flex items-center gap-1">
               <span className="font-semibold">{`${t('generalSimilarity')}:`}</span>
               <span className="inline-block w-16 text-right">
@@ -270,14 +286,14 @@ export default function ResultPage() {
             </span>
           </div>
         </div>
-
         {/* Painel que ocupa toda a área livre: 3 previews + diffs de texto */}
         <div className="flex flex-1 flex-col min-h-0 gap-3">
           {/* 3 previews ajustáveis com o redimensionamento da janela */}
           <div className="grid flex-1 min-h-0 gap-4 md:grid-cols-3">
+            {/* PDF 1 Page preview */}
             <div className="flex min-h-0 flex-col">
               <div className="mb-1 flex items-center text-xs font-medium">
-                <span>{`${t('PDF1')} ${t('page')}:`}&nbsp;&nbsp;</span>
+                <span className="mr-4">{`${t('PDF1')} ${t('page')}:`}</span>
                 <button
                   type="button"
                   onClick={() => openZoom('a')}
@@ -295,10 +311,10 @@ export default function ResultPage() {
                 />
               </div>
             </div>
-
+            {/* PDF 2 Page preview */}
             <div className="flex min-h-0 flex-col">
               <div className="mb-1 flex items-center text-xs font-medium">
-                <span>{`${t('PDF2')} ${t('page')}:`}&nbsp;&nbsp;</span>
+                <span className="mr-4">{`${t('PDF2')} ${t('page')}:`}</span>
                 <button
                   type="button"
                   onClick={() => openZoom('b')}
@@ -316,10 +332,10 @@ export default function ResultPage() {
                 />
               </div>
             </div>
-
+            {/* PDF with Diffs Page preview */}
             <div className="flex min-h-0 flex-col">
               <div className="mb-1 flex items-center text-xs font-medium">
-                <span>{`${t('pageWithDiff')}`}&nbsp;&nbsp;</span>
+                <span className="mr-4">{`${t('pageWithDiff')}`}</span>
                 <button
                   type="button"
                   onClick={() => openZoom('diff')}
@@ -338,11 +354,14 @@ export default function ResultPage() {
               </div>
             </div>
           </div>
-
           {/* Diferenças de texto (altura ampliada, com quebras de linha e estilo diff) */}
           <div className="flex flex-col">
             <div className="mb-1 text-xs font-medium">{t('textDiffs')}</div>
-            <div className="h-50 overflow-auto rounded border border-gray-400 bg-slate-50 p-3 text-xs font-mono whitespace-pre-wrap">
+            {/* key força remontagem quando a página atual muda */}
+            <div
+              key={current}
+              className="h-40 overflow-auto rounded border border-gray-400 bg-slate-50 p-3 text-xs font-mono whitespace-pre-wrap"
+            >
               {m.diffText?.map((part, idx) => {
                 let cls = 'diff-context';
                 let prefix = '';
@@ -354,7 +373,7 @@ export default function ResultPage() {
                   prefix = '- ';
                 }
                 return (
-                  <span key={idx} className={cls}>
+                  <span key={`${current}-${idx}`} className={cls}>
                     {prefix}
                     {part.value}
                   </span>
@@ -364,7 +383,6 @@ export default function ResultPage() {
           </div>
         </div>
       </section>
-
       {/* Modal de zoom */}
       {zoomOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -435,11 +453,9 @@ export default function ResultPage() {
                   </label>
                 </>
               )}
-
               {zoomMode === 'width' && <span>{`(${t('adjustToWidth')})`}</span>}
               {zoomMode === 'height' && <span>{`(${t('adjustToHeight')})`}</span>}
             </div>
-
             <div className="max-h-[85vh] max-w-[90vw] overflow-auto border bg-slate-100">
               <img
                 src={zoomSrc}

@@ -102,7 +102,7 @@ async function extractTextPerPage(jobId, maxPages, progressCb, pdfPath, suffix) 
     // importante: NÃO fazer .toLowerCase() aqui
     // a similaridade já usa normalizeText(), que trata caixa/espaço.
     pages.push(pageText);
-    normPages.push(normalizeText);
+    normPages.push(normalizedText);
 
     if (i % 100 === 0 || i === limit)
       await progressCb({ jobId, message: `Extraindo textos do PDF ${suffix}...`, done: i, total: limit });      
@@ -376,8 +376,17 @@ async function ensureDir(d) {
   if (!existsSync(d)) mkdirSync(d, { recursive: true });
 }
 
-async function runCompareJob(logLevel, { jobId = uuidv4(), aPdf, bPdf, params = {}, progressCb = () => {}, outputDir = null }) { 
-
+async function runCompareJob(
+  logLevel, 
+  { jobId = uuidv4(), 
+    title, 
+    aPdf, 
+    bPdf, 
+    params = {}, 
+    progressCb = () => {}, 
+    outputDir = null 
+  }
+) { 
   let lastPageDone = 0;
 
   // Configura o máximo de vCPU que podem ser utilizadas em paralelo
@@ -387,7 +396,7 @@ async function runCompareJob(logLevel, { jobId = uuidv4(), aPdf, bPdf, params = 
 
   // Configura nível de log
   setLogLevel(Number(logLevel));
-  await log(LOG_DEBUG, 'compare', 'I', `comparacao ${jobId} iniciada.`);
+  await log(LOG_DEBUG, 'compare', 'I', `comparacao ${jobId} - '${title}' iniciada.`);
   await log(LOG_DEBUG, 'compare', 'I', `limite de ${maxCPU} paginas em paralelo.`);
 
   // Inicializa pastas para os arquivos do job de comparação
@@ -492,8 +501,8 @@ async function runCompareJob(logLevel, { jobId = uuidv4(), aPdf, bPdf, params = 
       }
 
       m.diffText = textDiff(
-        m.a !== undefined ? textA[m.a, 0] : '',
-        m.b !== undefined ? textB[m.b, 0] : ''
+        m.a !== undefined ? textA[m.a] : '',
+        m.b !== undefined ? textB[m.b] : ''
       );
 
       if (i > lastPageDone) {
@@ -523,9 +532,29 @@ async function runCompareJob(logLevel, { jobId = uuidv4(), aPdf, bPdf, params = 
     await progressCb({ jobId, message: 'Gerando resultados...', done: 0, total: totalPages, totalPages });
     await imagesToPdf(rImgs, outPdf, progressCb);
     
+    // ====== Cálculo de page_diffs e text_diffs ======
+    let page_diffs = 0;
+    let text_diffs = 0;
+
+    for (const m of matches) {
+      const hasPageDiff =
+        m.status === 'inserted' ||
+        m.status === 'deleted' ||
+        m.hasImageDiff === true ||
+        (m.diffText && m.diffText.some(p => p.type === 'added' || p.type === 'removed'));
+
+      if (hasPageDiff) 
+        page_diffs++;
+
+      if (m.diffText && m.diffText.length > 0) 
+        text_diffs += m.diffText.filter(p => p.type === 'added' || p.type === 'removed').length;
+    }
+
     return {
       jobId,
       totalPages,
+      page_diffs,
+      text_diffs,
       matches,
       artifacts: {
         previews: rImgs,

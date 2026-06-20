@@ -8,12 +8,15 @@ CREATE TABLE comparisons (
   id          UUID PRIMARY KEY,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  title       TEXT NOT NULL DEFAULT '',
   filename_a  TEXT NOT NULL,
   filename_b  TEXT NOT NULL,
   status      TEXT NOT NULL, -- queued | running | done | failed
   input_a     TEXT NOT NULL,
   input_b     TEXT NOT NULL,
   total_pages INTEGER,
+  page_diffs  INTEGER,
+  text_diffs  INTEGER,
   matches     JSONB,
   artifacts   JSONB,
   error       TEXT

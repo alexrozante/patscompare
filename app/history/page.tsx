@@ -12,11 +12,14 @@ import { useTranslations } from 'next-intl';
 
 type HistoryItem = {
   id: string;
+  title: string;
   filename_a: string;
   filename_b: string;
   created_at: string;
   status: string;
   total_pages: number | null;
+  page_diffs: number | null;
+  text_diffs: number | null;
   error?: string | null;
 };
 
@@ -53,10 +56,13 @@ export default function HistoryPage() {
               <thead className="border-b bg-slate-200 text-xs font-semibold">
                 <tr>
                   <th className="px-2 py-2 w-40">{t('startedAt')}</th>
-                  <th className="px-2 py-2 w-100">{t('PDF1')}</th>
-                  <th className="px-2 py-2 w-100">{t('PDF2')}</th>
+                  <th className="px-2 py-2 w-80">{t('tcolTitle')}</th>
+                  <th className="px-2 py-2 w-80">{t('PDF1')}</th>
+                  <th className="px-2 py-2 w-80">{t('PDF2')}</th>
                   <th className="px-2 py-2 w-30">{t('status')}</th>
                   <th className="px-2 py-2 w-20">{t('pages')}</th>
+                  <th className="px-2 py-2 w-20">{t('tcolDiffPages')}</th>
+                  <th className="px-2 py-2 w-20">{t('tcolDiffTexts')}</th>
                   <th className="px-2 py-2">&nbsp;</th>
                 </tr>
               </thead>
@@ -65,6 +71,9 @@ export default function HistoryPage() {
                   <tr key={item.id} className="border-b last:border-0">
                     <td className="px-2 py-2 text-slate-700">
                       {new Date(item.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 font-mono">
+                      {item.title || ''}
                     </td>
                     <td className="px-2 py-2 font-mono">
                       {item.filename_a}
@@ -92,6 +101,12 @@ export default function HistoryPage() {
                     </td>
                     <td className="px-2 py-2">
                       {item.total_pages ?? '-'}
+                    </td>
+                    <td className="px-2 py-2">
+                      {item.page_diffs ?? '-'}
+                    </td>
+                    <td className="px-2 py-2">
+                      {item.text_diffs ?? '-'}
                     </td>
                     <td className="px-2 py-2">
                       <Link

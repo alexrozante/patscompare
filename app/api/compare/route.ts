@@ -30,16 +30,16 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
 
+    const title = formData.get('title') as string | '';
     const fileA = formData.get('a') as File | null;
     const fileB = formData.get('b') as File | null;
 
-    if (!fileA || !fileB) {
+    if (!fileA || !fileB)
       return NextResponse.json({ error: 'Envie dois PDFs' }, { status: 400 });
-    }
-
+    
     const filenameA = fileA.name;
     const filenameB = fileB.name;
-
+    
     const aPath = await saveFileFromForm(fileA, 'a');
     const bPath = await saveFileFromForm(fileB, 'b');
 
@@ -68,14 +68,14 @@ export async function POST(req: NextRequest) {
 
     await queue.add(
       'compare',
-      { jobId, filenameA, filenameB, aPath, bPath, params },
+      { jobId, title, filenameA, filenameB, aPath, bPath, params },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
       },
     );
-
     return NextResponse.json({ jobId });
+
   } catch (err: any) {
     console.error('POST /api/compare error', err);
     return NextResponse.json(

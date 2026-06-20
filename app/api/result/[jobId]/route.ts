@@ -20,10 +20,13 @@ export async function GET(
       SELECT
         id,
         created_at,
+        title,
         filename_a,
         filename_b,
         status,
         total_pages,
+        page_diffs,
+        text_diffs,
         matches
       FROM comparisons
       WHERE id = $1
@@ -44,11 +47,14 @@ export async function GET(
 
     return NextResponse.json({
       jobId: row.id,
+      title: row.title,
       created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       filename_a: row.filename_a,
       filename_b: row.filename_b,
       status: row.status,
       totalPages: row.total_pages,
+      page_diffs: row.page_diffs,
+      text_diffs: row.text_diffs,
       matches,
     });
   } catch (err: any) {
