@@ -4,13 +4,13 @@
  * Main app layout
  * (c) PATS Technologies
  */
-import { Rajdhani } from 'next/font/google';
 import './globals.css';
+import {cookies} from 'next/headers';
 import {getLocale, getTranslations} from 'next-intl/server';
 import { Header } from './header';
 import {Locale, NextIntlClientProvider} from 'next-intl';
 import LocaleSwitcher from './localeSwitcher';
-import {cookies} from 'next/headers';
+import { Rajdhani } from 'next/font/google';
 
 const rajdhani = Rajdhani({
   weight: ['500', '700'],

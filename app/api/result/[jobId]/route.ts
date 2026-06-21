@@ -55,7 +55,7 @@ export async function GET(
       totalPages: row.total_pages,
       page_diffs: row.page_diffs,
       text_diffs: row.text_diffs,
-      matches,
+      matches: row.matches,
     });
   } catch (err: any) {
     console.error('GET /api/result error', err);

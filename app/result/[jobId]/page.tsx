@@ -43,11 +43,9 @@ export default function ResultPage() {
   const t = useTranslations('Result');
 
   const params = useParams();
-  
   const jobId = params.jobId as string;
-  
+
   const [data, setData] = useState<ResultResponse | null>(null);
-  
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -56,6 +54,9 @@ export default function ResultPage() {
   const [zoomKind, setZoomKind] = useState<PreviewKind>('a');
   const [zoomMode, setZoomMode] = useState<ZoomMode>('percent');
   const [zoomPercent, setZoomPercent] = useState<number>(100);
+
+  // NOVO: controla se a área de texto está expandida (previews ocultos)
+  const [textExpanded, setTextExpanded] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -93,15 +94,15 @@ export default function ResultPage() {
     return <p>{`${t('loadingResult')}...`}</p>;
   }
 
-  const { 
-    title, 
-    created_at, 
-    filename_a, 
-    filename_b, 
-    matches, 
-    totalPages, 
-    page_diffs, 
-    text_diffs 
+  const {
+    title,
+    created_at,
+    filename_a,
+    filename_b,
+    matches,
+    totalPages,
+    page_diffs,
+    text_diffs,
   } = data;
 
   const m = matches[current];
@@ -174,35 +175,44 @@ export default function ResultPage() {
     zoomImgStyle = { height: '100%', width: 'auto' };
   }
 
-  // IMPORTANTE: assuma que o layout.tsx já faz:
-  // <body className="mx-auto w-[95%] min-h-screen flex flex-col">
-  // <main className="flex-1 min-h-0"> {children} </main>
-
   return (
     <main className="flex h-full flex-col text-black border-gray-400">
-      {/* Painel superior em uma linha */}
+      {/* Painel superior */}
       <section className="mb-4 rounded-lg border bg-white px-4 py-2 shadow-sm text-black">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-semibold text-xl">{title}</span>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span>{`${t('PDF1')}: `}<span className="font-semibold">{filename_a}</span></span>
+          <span>
+            {`${t('PDF1')}: `}
+            <span className="font-semibold">{filename_a}</span>
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span>{`${t('PDF2')}: `}<span className="font-semibold">{filename_b}</span></span>
+          <span>
+            {`${t('PDF2')}: `}
+            <span className="font-semibold">{filename_b}</span>
+          </span>
         </div>
-        <hr className="text-gray-300 mt-2 mb-2"></hr>
+        <hr className="text-gray-300 mt-2 mb-2" />
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span>{`${t('startedAt')}: `}</span><span className="font-semibold">{new Date(created_at).toLocaleString()}</span>
+          <span>{`${t('startedAt')}: `}</span>
+          <span className="font-semibold">
+            {new Date(created_at).toLocaleString()}
+          </span>
           <span className="text-gray-300">|</span>
-          <span>{`${t('totalPages')}: `}</span><span className="font-semibold">{totalPages}</span>
+          <span>{`${t('totalPages')}: `}</span>
+          <span className="font-semibold">{totalPages}</span>
           <span className="text-gray-300">|</span>
-          <span>{`${t('pagesWithDiff')}: `}</span><span className="font-semibold">{page_diffs | 0}</span>
+          <span>{`${t('pagesWithDiff')}: `}</span>
+          <span className="font-semibold">{page_diffs | 0}</span>
           <span className="text-gray-300">|</span>
-          <span>{`${t('textDiffs')}: `}</span><span className="font-semibold">{text_diffs | 0}</span>
+          <span>{`${t('textDiffs')}: `}</span>
+          <span className="font-semibold">{text_diffs | 0}</span>
         </div>
       </section>
-      {/* Painel principal (navegação + previews + texto) ocupando o espaço livre */}
+
+      {/* Painel principal */}
       <section className="mb-2 flex flex-1 flex-col space-y-3 rounded-lg border bg-white p-4 shadow-sm min-h-0">
         {/* Navegação */}
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -249,35 +259,37 @@ export default function ResultPage() {
             href={`/api/result/download/${jobId}`}
             className="ml-auto rounded bg-amber-600 border-amber-500 px-3 py-1 text-xs font-medium text-black hover:bg-amber-400"
           >
-            Download
+            {t('resultPDFDnd')}
+          </a>
+          <a
+            href={`/api/result/report/${jobId}`}
+            className="rounded bg-amber-600 border-amber-500 px-3 py-1 text-xs font-medium text-black hover:bg-amber-400"
+          >
+            {t('resultReportDnd')}
           </a>
         </div>
-        {/* Metadados em uma linha, percentuais à direita */}
+
+        {/* Metadados */}
         <div className="rounded border-gray-400 border bg-slate-50 px-3 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full">
-            {/* Status */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('status')}:`}</span> {m.status}
             </span>
-            {/* PDF 1 Page */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('PDF1')} ${t('page')}:`}</span>{' '}
               {m.a !== undefined ? m.a + 1 : '-'}
             </span>
-            {/* PDF 2 Page */}
             <span className="font-semibold">
               <span className="font-normal">{`${t('PDF2')} ${t('page')}:`}</span>{' '}
               {m.b !== undefined ? m.b + 1 : '-'}
             </span>
             <span className="flex-1" />
-            {/* Text similarity */}
             <span className="flex items-center gap-1">
               <span className="font-semibold">{`${t('textSimilarity')}:`}</span>
               <span className="inline-block w-16 text-right">
                 {textSimStr}
               </span>
             </span>
-            {/* Image (general) similarity */}
             <span className="flex items-center gap-1">
               <span className="font-semibold">{`${t('generalSimilarity')}:`}</span>
               <span className="inline-block w-16 text-right">
@@ -286,81 +298,99 @@ export default function ResultPage() {
             </span>
           </div>
         </div>
-        {/* Painel que ocupa toda a área livre: 3 previews + diffs de texto */}
+
+        {/* Painel que ocupa toda a área livre */}
         <div className="flex flex-1 flex-col min-h-0 gap-3">
-          {/* 3 previews ajustáveis com o redimensionamento da janela */}
-          <div className="grid flex-1 min-h-0 gap-4 md:grid-cols-3">
-            {/* PDF 1 Page preview */}
-            <div className="flex min-h-0 flex-col">
-              <div className="mb-1 flex items-center text-xs font-medium">
-                <span className="mr-4">{`${t('PDF1')} ${t('page')}:`}</span>
-                <button
-                  type="button"
-                  onClick={() => openZoom('a')}
-                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
-                  title="Zoom"
-                >
-                  👁
-                </button>
+          {/* 3 previews ajustáveis - escondidos quando textExpanded=true */}
+          {!textExpanded && (
+            <div className="grid flex-1 min-h-0 gap-4 md:grid-cols-3">
+              {/* PDF 1 Page preview */}
+              <div className="flex min-h-0 flex-col">
+                <div className="mb-1 flex items-center text-xs font-medium">
+                  <span className="mr-4">{`${t('PDF1')} ${t('page')}:`}</span>
+                  <button
+                    type="button"
+                    onClick={() => openZoom('a')}
+                    className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                    title="Zoom"
+                  >
+                    👁
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                  <img
+                    src={`/api/preview/${jobId}/${current}-a.png?${Date.now()}`}
+                    alt="Página A"
+                    className="block w-full"
+                  />
+                </div>
               </div>
-              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
-                <img
-                  src={`/api/preview/${jobId}/${current}-a.png?${Date.now()}`}
-                  alt="Página A"
-                  className="block w-full"
-                />
+
+              {/* PDF 2 Page preview */}
+              <div className="flex min-h-0 flex-col">
+                <div className="mb-1 flex items-center text-xs font-medium">
+                  <span className="mr-4">{`${t('PDF2')} ${t('page')}:`}</span>
+                  <button
+                    type="button"
+                    onClick={() => openZoom('b')}
+                    className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                    title="Zoom"
+                  >
+                    👁
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                  <img
+                    src={`/api/preview/${jobId}/${current}-b.png?${Date.now()}`}
+                    alt="Página B"
+                    className="block w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Diff preview */}
+              <div className="flex min-h-0 flex-col">
+                <div className="mb-1 flex items-center text-xs font-medium">
+                  <span className="mr-4">{`${t('pageWithDiff')}`}</span>
+                  <button
+                    type="button"
+                    onClick={() => openZoom('diff')}
+                    className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
+                    title="Zoom"
+                  >
+                    👁
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                  <img
+                    src={`/api/preview/${jobId}/${current}-diff.png?${Date.now()}`}
+                    alt="Diff"
+                    className="block w-full"
+                  />
+                </div>
               </div>
             </div>
-            {/* PDF 2 Page preview */}
-            <div className="flex min-h-0 flex-col">
-              <div className="mb-1 flex items-center text-xs font-medium">
-                <span className="mr-4">{`${t('PDF2')} ${t('page')}:`}</span>
-                <button
-                  type="button"
-                  onClick={() => openZoom('b')}
-                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
-                  title="Zoom"
-                >
-                  👁
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
-                <img
-                  src={`/api/preview/${jobId}/${current}-b.png?${Date.now()}`}
-                  alt="Página B"
-                  className="block w-full"
-                />
-              </div>
+          )}
+
+          {/* Diferenças de texto: expansível */}
+          <div className={`flex flex-col ${textExpanded ? 'flex-1 min-h-0' : ''}`}>
+            <div className="mb-1 flex items-center justify-between text-xs font-medium">
+              <span>{t('textDiffs')}</span>
+              {/* Ícone para expandir/recolher */}
+              <button
+                type="button"
+                onClick={() => setTextExpanded(prev => !prev)}
+                className="rounded border px-1 text-[10px] bg-amber-100 border-amber-400"
+                title={textExpanded ? t('view') : t('view')}
+              >
+                {textExpanded ? '⇲' : '⇱'}
+              </button>
             </div>
-            {/* PDF with Diffs Page preview */}
-            <div className="flex min-h-0 flex-col">
-              <div className="mb-1 flex items-center text-xs font-medium">
-                <span className="mr-4">{`${t('pageWithDiff')}`}</span>
-                <button
-                  type="button"
-                  onClick={() => openZoom('diff')}
-                  className="rounded border px-1 text-white text-[12px] bg-amber-600 border-amber-500"
-                  title="Zoom"
-                >
-                  👁
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
-                <img
-                  src={`/api/preview/${jobId}/${current}-diff.png?${Date.now()}`}
-                  alt="Diff"
-                  className="block w-full"
-                />
-              </div>
-            </div>
-          </div>
-          {/* Diferenças de texto (altura ampliada, com quebras de linha e estilo diff) */}
-          <div className="flex flex-col">
-            <div className="mb-1 text-xs font-medium">{t('textDiffs')}</div>
-            {/* key força remontagem quando a página atual muda */}
             <div
               key={current}
-              className="h-40 overflow-auto rounded border border-gray-400 bg-slate-50 p-3 text-xs font-mono whitespace-pre-wrap"
+              className={`overflow-auto rounded border border-gray-400 bg-slate-50 p-3 text-xs font-mono whitespace-pre-wrap ${
+                textExpanded ? 'h-full min-h-0' : 'h-40'
+              }`}
             >
               {m.diffText?.map((part, idx) => {
                 let cls = 'diff-context';
@@ -383,12 +413,15 @@ export default function ResultPage() {
           </div>
         </div>
       </section>
+
       {/* Modal de zoom */}
       {zoomOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="relative max-h-[95vh] max-w-[95vw] rounded-md bg-white p-3 shadow-lg">
             <p>
-              {`${t('pageOf')} ${zoomKind.toUpperCase() === 'DIFF' ? 'Diferenças' : zoomKind.toUpperCase()}`}
+              {`${t('pageOf')} ${
+                zoomKind.toUpperCase() === 'DIFF' ? 'Diferenças' : zoomKind.toUpperCase()
+              }`}
             </p>
             <button
               type="button"
@@ -403,9 +436,7 @@ export default function ResultPage() {
               <select
                 className="rounded border px-1 py-0.5 bg-white border-stone-400"
                 value={zoomMode}
-                onChange={e =>
-                  setZoomMode(e.target.value as ZoomMode)
-                }
+                onChange={e => setZoomMode(e.target.value as ZoomMode)}
               >
                 <option value="percent">{`${t('percent')}`}</option>
                 <option value="width">{`${t('width')}`}</option>

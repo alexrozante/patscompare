@@ -155,16 +155,20 @@ export async function worker() {
           workspace: result.artifacts.workspace
         };
 
-        await updateComparison(compId, {
-          status: 'done',
-          total_pages: result.totalPages,
-          page_diffs: result.page_diffs,
-          text_diffs: result.text_diffs,
-          matches: result.matches,
-          artifacts: artifacts,
-          error: null
-        });
-        
+        try {
+          await updateComparison(compId, {
+            status: 'done',
+            total_pages: result.totalPages,
+            page_diffs: result.page_diffs,
+            text_diffs: result.text_diffs,
+            matches: result.matches,
+            artifacts: artifacts,
+            error: null
+          });
+        } catch (err) {
+          /* ignore */
+          console.error(err);
+        }
         await log(LOG_DEBUG, 'worker', 'I', `worker ${workerId} comp ${compId} - resultados salvos no BD.`);
 
         await job.updateProgress({ jobId, ready: true, done: result.totalPages, total: result.totalPages, message: 'Ok' });
@@ -176,8 +180,8 @@ export async function worker() {
           totalPages: result.totalPages, 
           page_diffs: result.page_diffs,
           text_diffs: result.text_diffs,
-          matches: result.matches, 
-          artifacts: result.artifacts 
+          matches: JSON.stringify(result.matches), 
+          artifacts: JSON.stringify(result.artifacts) 
         };
 
       } catch (err) {

@@ -51,6 +51,14 @@ export default function HomePage() {
 
     const handler = (data: ProgressEvent) => {
       //console.log(t('socketProgress'), data);
+      let newMessage = data.message;
+      if (newMessage) {
+        if (newMessage.startsWith('##')) {
+          data.message = newMessage.substring(2);
+        } else {
+          data.message = t(newMessage);
+        }
+      }
       setProgress(prev => ({ ...(prev || {}), ...data }));
     };
 

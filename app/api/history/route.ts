@@ -1,23 +1,28 @@
 /**
  * PATSCompare
- * /app/api/history/route.js
+ * /app/api/history/route.ts
  * API route that returns the comparison table records
  * (c) PATS Technologies
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '../../../server/db';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    //TODO Adicionar suporte para paginacao e futuramente filtros
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, Number(searchParams.get('page') || '1'));
+    const pageSize = Math.max(1, Math.min(100, Number(searchParams.get('pageSize') || '20')));
+    const offset = (page - 1) * pageSize;
+
     const res = await pool.query(
       `
       SELECT
         id,
         title,
+        created_at,
+        TO_CHAR(updated_at - created_at, 'HH24:MI:SS') AS elapsed_time,
         filename_a,
         filename_b,
-        created_at,
         status,
         total_pages,
         page_diffs,
@@ -25,36 +30,34 @@ export async function GET() {
         error
       FROM comparisons
       ORDER BY created_at DESC
-      LIMIT 100
-      `
+      LIMIT $1 OFFSET $2
+      `,
+      [pageSize, offset]
     );
 
-    // Normaliza tipos p/ frontend
-    const items = res.rows.map((row: { 
-      id: string; 
-      title: string;
-      filename_a: string;
-      filename_b: string;
-      created_at: { toISOString: () => any; }; 
-      status: string; 
-      total_pages: number | null; 
-      page_diffs: number | null;
-      text_diffs: number | null;
-      error: string | null; 
-    }) => ({
+    const items = res.rows.map((row: any) => ({
       id: row.id as string,
+      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      elapsed_time: row.elapsed_time as string,
       title: row.title as string,
       filename_a: row.filename_a as string,
       filename_b: row.filename_b as string,
-      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       status: row.status as string,
       total_pages: row.total_pages as number | null,
-      page_diffs: row.page_diffs as number | 0,
-      text_diffs: row.text_diffs as number | 0,
+      page_diffs: (row.page_diffs as number | null) ?? 0,
+      text_diffs: (row.text_diffs as number | null) ?? 0,
       error: row.error as string | null
     }));
 
-    return NextResponse.json(items);
+    // hasMore simples: se veio pageSize itens, assumimos que pode haver mais
+    const hasMore = items.length === pageSize;
+
+    return NextResponse.json({
+      items,
+      page,
+      pageSize,
+      hasMore
+    });
   } catch (err: any) {
     console.error('GET /api/history error', err);
     return new NextResponse('Erro ao carregar histórico', { status: 500 });

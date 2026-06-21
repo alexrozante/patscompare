@@ -23,6 +23,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 const { JaroWinklerDistance, LevenshteinDistance } = natural;
                
+function normalizeText(text) {
+  return (text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 async function extractTextPerPage(jobId, maxPages, progressCb, pdfPath, suffix) {
 
   const __filename = fileURLToPath(import.meta.url);
@@ -34,7 +41,7 @@ async function extractTextPerPage(jobId, maxPages, progressCb, pdfPath, suffix) 
   const pages = [];
   const normPages = [];
 
-  await progressCb({ jobId, message: `Extraindo textos do PDF ${suffix}...`, done: 0, total: pdf.numPages });      
+  await progressCb({ jobId, message: `progExtractingPages${suffix}`, done: 0, total: pdf.numPages });      
 
   const limit = maxPages && maxPages > 0 && maxPages < pdf.numPages ? maxPages : pdf.numPages;
 
@@ -93,10 +100,12 @@ async function extractTextPerPage(jobId, maxPages, progressCb, pdfPath, suffix) 
     const pageText = lines
       .map(l => l.text)
       .join('\n')
+      // remove NULs explícitos
+      .replace(/\u0000/g, '<NULL>')
       // não colapsar \n, só espaços repetidos dentro da linha
       .replace(/[ \t]+/g, ' ')
       .trim();
-
+      
     const normalizedText = normalizeText(pageText);
 
     // importante: NÃO fazer .toLowerCase() aqui
@@ -104,17 +113,40 @@ async function extractTextPerPage(jobId, maxPages, progressCb, pdfPath, suffix) 
     pages.push(pageText);
     normPages.push(normalizedText);
 
-    if (i % 100 === 0 || i === limit)
-      await progressCb({ jobId, message: `Extraindo textos do PDF ${suffix}...`, done: i, total: limit });      
+    if (i % 10 === 0 || i === limit)
+      await progressCb({ jobId, message: `progExtractingPages${suffix}`, done: i, total: limit });      
   }
   return [pages, normPages];
 }
 
-function normalizeText(text) {
-  return (text || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+function cosineSimilarity(a, b) {
+  const nGrams = (str, n = 3) => {
+    const grams = new Map();
+    for (let i = 0; i <= str.length - n; i++) {
+      const gram = str.slice(i, i + n);
+      grams.set(gram, (grams.get(gram) || 0) + 1);
+    }
+    return grams;
+  };
+
+  const gramsA = nGrams(a.toLowerCase());
+  const gramsB = nGrams(b.toLowerCase());
+  
+  let dotProduct = 0;
+  let magA = 0;
+  let magB = 0;
+
+  const allGrams = new Set([...gramsA.keys(), ...gramsB.keys()]);
+  
+  for (const gram of allGrams) {
+    const countA = gramsA.get(gram) || 0;
+    const countB = gramsB.get(gram) || 0;
+    dotProduct += countA * countB;
+    magA += countA * countA;
+    magB += countB * countB;
+  }
+
+  return dotProduct / (Math.sqrt(magA) * Math.sqrt(magB)) || 0;
 }
 
 function textSimilarity(a, b) {
@@ -124,12 +156,18 @@ function textSimilarity(a, b) {
   if (!a || !b) 
     return 0;
 
-  const maxLen = Math.max(a.length, b.length);
+  const lenA = a.length;
+  const lenB = b.length;
+  const maxLen = Math.max(lenA, lenB);
   if (maxLen === 0) 
     return 1;
-
-  const lev = LevenshteinDistance(a, b);
-  const sim = 1 - lev / maxLen;
+  
+  const diff = Math.abs(lenA - lenB);
+  if (diff / maxLen > 0.8) 
+    return 0;
+  
+  const textSimilarity = cosineSimilarity(a, b);
+  const sim = 1 - textSimilarity / maxLen;
 
   return Math.max(0, Math.min(1, sim));
 }
@@ -161,7 +199,7 @@ async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POS
       const sim = getSim(i, i);
       matches.push({ a: i, b: i, status: 'matched', textSim: sim });
       if (i % 10 === 0 || i + 1 === maxPagesA)
-        await progressCb({ jobId, message: 'Relacionando paginas...', done: i+1, total: maxPagesA });
+        await progressCb({ jobId, done: i+1, total: maxPagesA });
       continue;
     }
     let best = -1;
@@ -186,7 +224,7 @@ async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POS
     }
 
     if (i % 100 === 0 || i + 1 === maxPagesA)
-      await progressCb({ jobId, message: 'Relacionando paginas...', done: i+1, total: maxPagesA });
+      await progressCb({ jobId, message: 'progMatchingPages', done: i+1, total: maxPagesA });
   }
 
   if (POSFIXA) 
@@ -209,7 +247,7 @@ async function pdfToPngs(jobId, maxPages, progressCb, pdfPath, outDir, prefix = 
   const total = maxPages;
   let doneFiles = 0;
 
-  await progressCb({ jobId, message: `Processando imagens do PDF ${pdfSeq}...`, done: 0, total });
+  await progressCb({ jobId, message: `progImagesProc${pdfSeq}`, done: 0, total });
 
   // helper para contar arquivos gerados até agora
   const countFiles = () => readdirSync(outDir)
@@ -248,7 +286,7 @@ async function pdfToPngs(jobId, maxPages, progressCb, pdfPath, outDir, prefix = 
       // increment pode ser zero if files were already present; use newCount absolute
       doneFiles = newCount;
       // chamar progressCb a cada chunk; você pode condicionar para chamar somente a cada 100 se preferir
-      progressCb({ jobId, message: `Processando imagens do PDF ${pdfSeq}...`, done: Math.min(doneFiles, total), total });
+      progressCb({ jobId, message: `progImagesProc${pdfSeq}`, done: Math.min(doneFiles, total), total });
       resolve();
     });
 
@@ -268,7 +306,7 @@ async function pdfToPngs(jobId, maxPages, progressCb, pdfPath, outDir, prefix = 
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   doneFiles = files.length;
-  await progressCb({ jobId, message: `Processando imagens do PDF ${pdfSeq}...`, done: Math.min(doneFiles, total), total });
+  await progressCb({ jobId, message: `progImagesProc${pdfSeq}`, done: Math.min(doneFiles, total), total });
 
   return files.map(f => join(outDir, f));
 }
@@ -356,14 +394,18 @@ function textDiff(a, b) {
   }));
 }
 
-async function imagesToPdf(imgPaths, outPdfPath, progressCb) {
+async function imagesToPdf(jobId, imgPaths, outPdfPath, progressCb, limit) {
   const doc = new PDFDocument({ autoFirstPage: false });
   const stream = createWriteStream(outPdfPath);
   doc.pipe(stream);
+  let pw = 0;
   for (const p of imgPaths) {
     const size = await sharp(p).metadata();
     doc.addPage({ size: [size.width, size.height] });
     doc.image(p, 0, 0);
+    pw++;
+    if (pw === limit || pw % 10 === 1)
+      await progressCb({ jobId, done: pw, total: limit });      
   }
   doc.end();
   return new Promise((resolve, reject) => {
@@ -430,12 +472,12 @@ async function runCompareJob(
     const bImgs = await pdfToPngs(jobId, textB.length, progressCb, bPdf, bDir, 'b', 2, PDF_DPI, maxCPU);
 
     await log(LOG_VERBOSE, 'compare', 'I', `comp ${jobId} - relacionando paginas...`);
-    await progressCb({ jobId, message: 'Relacionando paginas...', done: 0, total: 1 });
+    await progressCb({ jobId, message: 'progMatchingPages', done: 0, total: 1 });
     matches = await matchPages(jobId, progressCb, normTextA, normTextB, { OFFSET, FATSIM, POSFIXA, MAX_PAGES });
     totalPages = matches.length;
     await log(LOG_VERBOSE, 'compare', 'I', `comp ${jobId} - ${totalPages} paginas. Comparando...`);
 
-    await progressCb({ jobId, message: 'Comparando...', done: 0, total: totalPages, totalPages });
+    await progressCb({ jobId, message: 'progComparing', done: 0, total: totalPages, totalPages });
 
     const processPage = async (i) => {
 
@@ -507,8 +549,8 @@ async function runCompareJob(
 
       if (i > lastPageDone) {
         lastPageDone = i;
-        if (lastPageDone % 100 === 0 || lastPageDone === totalPages)
-          await progressCb({ jobId, message: `Página ${lastPageDone}/${totalPages}`, done: lastPageDone, total: totalPages, preview: true, totalPages });
+        if (lastPageDone % 10 === 0 || lastPageDone === totalPages)
+          await progressCb({ jobId, message: `##Pg ${lastPageDone}/${totalPages}`, done: lastPageDone, total: totalPages, preview: true, totalPages });
       }
     };
 
@@ -529,8 +571,8 @@ async function runCompareJob(
     
     await log(LOG_VERBOSE, 'compare', 'I', `comp ${jobId} - gerando PDF com diferencas...`);
     
-    await progressCb({ jobId, message: 'Gerando resultados...', done: 0, total: totalPages, totalPages });
-    await imagesToPdf(rImgs, outPdf, progressCb);
+    await progressCb({ jobId, message: 'progResultsGen', done: 0, total: totalPages, totalPages });
+    await imagesToPdf(jobId, rImgs, outPdf, progressCb, totalPages);
     
     // ====== Cálculo de page_diffs e text_diffs ======
     let page_diffs = 0;
