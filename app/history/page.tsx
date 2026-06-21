@@ -91,7 +91,7 @@ export default function HistoryPage() {
                     <th className="px-2 py-2 w-20">{t('pages')}</th>
                     <th className="px-2 py-2 w-20">{t('tcolDiffPages')}</th>
                     <th className="px-2 py-2 w-20">{t('tcolDiffTexts')}</th>
-                    <th className="px-2 py-2 w-40">{t('elapsedTime')}</th>
+                    <th className="px-2 py-2 w-24">{t('elapsedTime')}</th>
                     <th className="px-2 py-2">&nbsp;</th>
                   </tr>
                 </thead>

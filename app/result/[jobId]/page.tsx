@@ -6,7 +6,7 @@
  */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -57,6 +57,14 @@ export default function ResultPage() {
 
   // NOVO: controla se a área de texto está expandida (previews ocultos)
   const [textExpanded, setTextExpanded] = useState(false);
+
+  // Refs para sincronizar scroll dos 3 previews
+  const previewRefs = [
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+  ];
+  const isSyncingRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -173,6 +181,31 @@ export default function ResultPage() {
     zoomImgStyle = { width: '100%', height: 'auto' };
   } else if (zoomMode === 'height') {
     zoomImgStyle = { height: '100%', width: 'auto' };
+  }
+
+  // Sincroniza scroll: calcula ratio do elemento origem e aplica nos demais
+  function onPreviewScroll(srcIndex: number) {
+    if (isSyncingRef.current !== null) return;
+    const src = previewRefs[srcIndex].current;
+    if (!src) return;
+
+    const srcScrollTop = src.scrollTop;
+    const srcMax = src.scrollHeight - src.clientHeight;
+    const ratio = srcMax > 0 ? srcScrollTop / srcMax : 0;
+
+    isSyncingRef.current = srcIndex;
+    requestAnimationFrame(() => {
+      previewRefs.forEach((ref, idx) => {
+        if (idx === srcIndex) return;
+        const el = ref.current;
+        if (!el) return;
+        const max = el.scrollHeight - el.clientHeight;
+        el.scrollTop = Math.round(ratio * Math.max(0, max));
+      });
+      requestAnimationFrame(() => {
+        isSyncingRef.current = null;
+      });
+    });
   }
 
   return (
@@ -317,7 +350,11 @@ export default function ResultPage() {
                     👁
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <div
+                  ref={previewRefs[0]}
+                  onScroll={() => onPreviewScroll(0)}
+                  className="flex-1 min-h-0 overflow-auto border bg-slate-100"
+                >
                   <img
                     src={`/api/preview/${jobId}/${current}-a.png?${Date.now()}`}
                     alt="Página A"
@@ -339,7 +376,11 @@ export default function ResultPage() {
                     👁
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <div
+                  ref={previewRefs[1]}
+                  onScroll={() => onPreviewScroll(1)}
+                  className="flex-1 min-h-0 overflow-auto border bg-slate-100"
+                >
                   <img
                     src={`/api/preview/${jobId}/${current}-b.png?${Date.now()}`}
                     alt="Página B"
@@ -361,7 +402,11 @@ export default function ResultPage() {
                     👁
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 overflow-auto border bg-slate-100">
+                <div
+                  ref={previewRefs[2]}
+                  onScroll={() => onPreviewScroll(2)}
+                  className="flex-1 min-h-0 overflow-auto border bg-slate-100"
+                >
                   <img
                     src={`/api/preview/${jobId}/${current}-diff.png?${Date.now()}`}
                     alt="Diff"
@@ -374,13 +419,13 @@ export default function ResultPage() {
 
           {/* Diferenças de texto: expansível */}
           <div className={`flex flex-col ${textExpanded ? 'flex-1 min-h-0' : ''}`}>
-            <div className="mb-1 flex items-center justify-between text-xs font-medium">
+            <div className="mb-1 gap-4 flex items-center text-xs font-medium">
               <span>{t('textDiffs')}</span>
               {/* Ícone para expandir/recolher */}
               <button
                 type="button"
                 onClick={() => setTextExpanded(prev => !prev)}
-                className="rounded border px-1 text-[10px] bg-amber-100 border-amber-400"
+                className="rounded border px-1 text-[10px] text-black bg-amber-500 border-amber-500"
                 title={textExpanded ? t('view') : t('view')}
               >
                 {textExpanded ? '⇲' : '⇱'}
