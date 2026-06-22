@@ -38,8 +38,8 @@ export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '';
-  const SOCKET_PORT = process.env.NEXT_PUBLIC_SOCKET_PORT || '5001';
+  //const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '';
+  const SOCKET_PORT = ''; //process.env.NEXT_PUBLIC_SOCKET_PORT || '5001';
 
   const t = useTranslations('Result');
   
