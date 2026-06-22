@@ -45,6 +45,9 @@ export default function HomePage() {
   
   // inicializa socket e listener de progresso
   useEffect(() => {
+    /*
+    Versão sem proxy reverso (nginx)
+
     const host = SOCKET_HOST || window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
     const socketUrl = `${protocol}://${host}:${SOCKET_PORT}`;
@@ -53,8 +56,15 @@ export default function HomePage() {
       socket = io(socketUrl);
     }
 
+    Versão com proxy reveso
+    */
+    const socket = io('/', {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+    });
+
     const handleConnect = () => {
-      console.log(`[socket] conectado a ${socketUrl}`);
+      console.log(`[socket] conectado`);
     };
 
     const handleConnectError = (err: any) => {
