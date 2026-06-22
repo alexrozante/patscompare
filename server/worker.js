@@ -17,8 +17,8 @@ import dotenv from 'dotenv';
 
 export async function worker() {
 
-  dotenv.config({ path: '.env.local' });
-  if (! process.env.WORKER_LOG_LEVEL) dotenv.config({ path: '.env' });
+  dotenv.config({ path: '.env' });
+  dotenv.config({ path: '.env.local', override: true });
 
   setLogLevel(Number(process.env.WORKER_LOG_LEVEL) || LOG_NORMAL);
 

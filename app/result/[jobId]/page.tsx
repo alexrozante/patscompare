@@ -94,12 +94,12 @@ export default function ResultPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  if (loading && !data) {
-    return <p>{t('noResult')}</p>;
-  }
-
   if (loading || !data) {
     return <p>{`${t('loadingResult')}...`}</p>;
+  }
+
+  if (!loading && !data) {
+    return <p>{t('noResult')}</p>;
   }
 
   const {

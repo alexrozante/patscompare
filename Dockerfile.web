@@ -1,24 +1,43 @@
-#TODO Ajustar para executar o servidor web  
-FROM node:20-bullseye-slim
+FROM node:24.16.0-bullseye-slim AS builder
+
+WORKDIR /opt/patscompare
+
+# copiar tudo para poder construir o Next.js
+COPY package.json package-lock.json ./
+COPY . ./
+
+# instalar dependências (inclui devDeps necessários para o build)
+RUN npm install
+
+# executar build do Next
+RUN npm run build
+
+FROM node:24.16.0-bullseye-slim AS runner
 
 EXPOSE 3000
 
 ENV ROLE=server
-
 ENV NODE_ENV=production
 
 WORKDIR /opt/patscompare
 
-COPY entrypoint.sh start.sh package.json package-lock.json ./
-COPY server ./server
+# garantir que binários locais (ex: node_modules/.bin/next) estejam no PATH
+ENV PATH=/opt/patscompare/node_modules/.bin:$PATH
+
+# copiar apenas o necessário para execução em produção
+COPY --from=builder /opt/patscompare/package.json ./package.json
+COPY --from=builder /opt/patscompare/package-lock.json ./package-lock.json
+COPY --from=builder /opt/patscompare/.env ./.env
+COPY --from=builder /opt/patscompare/.next ./.next
+COPY --from=builder /opt/patscompare/public ./public
+COPY --from=builder /opt/patscompare/server ./server
+COPY --from=builder /opt/patscompare/utils ./utils
+COPY --from=builder /opt/patscompare/entrypoint.sh ./entrypoint.sh
+COPY --from=builder /opt/patscompare/start.sh ./start.sh
 
 RUN chmod +x ./entrypoint.sh ./start.sh
 
-RUN npm ci --production
-
-# build do Next já pronto, gerado no WSL
-COPY .next ./.next
-COPY public ./public
-COPY server ./server
+# instalar apenas dependências de produção
+RUN npm install --omit=dev
 
 ENTRYPOINT ["/opt/patscompare/entrypoint.sh"]

@@ -30,11 +30,7 @@ export async function generateMetadata() {
 export default async function LocaleLayout({children}: LayoutProps<'/'>) {
   const locale = await getLocale();
 
-  async function changeLocaleAction(locale: Locale) {
-    'use server';
-    const store = await cookies();
-    store.set('locale', locale);
-  }
+
 
   return (
     <html lang={locale}>

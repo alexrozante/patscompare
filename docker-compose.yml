@@ -45,6 +45,8 @@ services:
     environment:
       - ROLE=web
       - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_URL=${REDIS_URL}
       - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
       - MINIO_ACCESS_KEY=${MINIO_USER}
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
@@ -52,8 +54,13 @@ services:
       - PGDATABASE=${PGDATABASE}
       - PGUSER=${PGUSER}
       - PGPASSWORD=${PGPASSWORD}
+      - NEXT_PUBLIC_SOCKET_HOST=${NEXT_PUBLIC_SOCKET_HOST}
+      - NEXT_PUBLIC_SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
     ports:
       - "${WEB_PORT}:3000"
+    volumes:
+      - ./env:/opt/patscompare/.env
+      - ./data:/opt/patscompare/data
     depends_on:
       - db
       - redis
@@ -67,14 +74,18 @@ services:
       dockerfile: Dockerfile.socket
     environment:
       - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
       - REDIS_URL=${REDIS_URL}
-      - SOCKET_PORT=${SOCKET_PORT}
+      - SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
+      - SOCKET_LOG_LEVEL=${SOCKET_LOG_LEVEL}
       - PGHOST=${PGHOST}
       - PGDATABASE=${PGDATABASE}
       - PGUSER=${PGUSER}
       - PGPASSWORD=${PGPASSWORD}
     ports:
-      - "${SOCKET_PORT}:5001"
+      - "${NEXT_PUBLIC_SOCKET_PORT}:5001"
+    volumes:
+      - ./env:/opt/patscompare/.env
     depends_on:
       - db
       - redis
@@ -90,6 +101,9 @@ services:
       - WORKER_ID=1
       - WORKER_CONCURRENCY=1
       - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_URL=${REDIS_URL}
+      - WORKER_LOG_LEVEL=${WORKER_LOG_LEVEL}
       - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
       - MINIO_ACCESS_KEY=${MINIO_USER}
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
@@ -97,6 +111,9 @@ services:
       - PGDATABASE=${PGDATABASE}
       - PGUSER=${PGUSER}
       - PGPASSWORD=${PGPASSWORD}
+    volumes:
+      - ./env:/opt/patscompare/.env
+      - ./data:/opt/patscompare/data
     depends_on:
       - db
       - redis

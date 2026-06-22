@@ -38,16 +38,32 @@ export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '127.0.0.1';
+  const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '';
   const SOCKET_PORT = process.env.NEXT_PUBLIC_SOCKET_PORT || '5001';
 
   const t = useTranslations('Result');
   
   // inicializa socket e listener de progresso
   useEffect(() => {
+    const host = SOCKET_HOST || window.location.hostname;
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+    const socketUrl = `${protocol}://${host}:${SOCKET_PORT}`;
+
     if (!socket) {
-      socket = io(`http://${SOCKET_HOST}:${SOCKET_PORT}`);
+      socket = io(socketUrl);
     }
+
+    const handleConnect = () => {
+      console.log(`[socket] conectado a ${socketUrl}`);
+    };
+
+    const handleConnectError = (err: any) => {
+      console.error('[socket] connect error', err);
+    };
+
+    const handleDisconnect = (reason: string) => {
+      console.warn('[socket] disconnected', reason);
+    };
 
     const handler = (data: ProgressEvent) => {
       //console.log(t('socketProgress'), data);
@@ -62,12 +78,18 @@ export default function HomePage() {
       setProgress(prev => ({ ...(prev || {}), ...data }));
     };
 
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('disconnect', handleDisconnect);
     socket.on('progress', handler);
 
     return () => {
       socket?.off('progress', handler);
+      socket?.off('connect', handleConnect);
+      socket?.off('connect_error', handleConnectError);
+      socket?.off('disconnect', handleDisconnect);
     };
-  }, [SOCKET_HOST, SOCKET_PORT]);
+  }, [SOCKET_PORT]);
 
   // redireciona quando receber ready=true
   useEffect(() => {

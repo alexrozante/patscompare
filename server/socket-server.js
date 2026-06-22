@@ -13,8 +13,8 @@ import { QueueEvents } from 'bullmq';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.local' });
-if (! process.env.SOCKET_LOG_LEVEL) dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local', override: true });
 
 setLogLevel(Number(process.env.SOCKET_LOG_LEVEL) || LOG_NORMAL);
 

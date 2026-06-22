@@ -1,4 +1,4 @@
-FROM node:20-bullseye-slim
+FROM node:24.16.0-bullseye-slim
 
 ENV ROLE=worker
 
@@ -9,16 +9,21 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       poppler-utils \
       ca-certificates \
-      curl && \
+      curl \
+      libvips-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/patscompare
 
-COPY entrypoint.sh start.sh package.json package-lock.json ./
+# garantir que binários locais (ex: node_modules/.bin) estejam no PATH
+ENV PATH=/opt/patscompare/node_modules/.bin:$PATH
+
+COPY entrypoint.sh start.sh package.json package-lock.json .env ./
 COPY server ./server
+COPY utils ./utils
 
 RUN chmod +x ./entrypoint.sh ./start.sh
 
-RUN npm ci --production
+RUN npm install --omit=dev
 
 ENTRYPOINT ["/opt/patscompare/entrypoint.sh"]
