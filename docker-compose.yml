@@ -59,7 +59,7 @@ services:
     ports:
       - "${WEB_PORT}:3000"
     volumes:
-      - ./env:/opt/patscompare/.env
+      - ./.env:/opt/patscompare/.env
       - ./data:/opt/patscompare/data
     depends_on:
       - db
@@ -85,7 +85,7 @@ services:
     ports:
       - "${NEXT_PUBLIC_SOCKET_PORT}:5001"
     volumes:
-      - ./env:/opt/patscompare/.env
+      - ./.env:/opt/patscompare/.env
     depends_on:
       - db
       - redis
@@ -112,7 +112,7 @@ services:
       - PGUSER=${PGUSER}
       - PGPASSWORD=${PGPASSWORD}
     volumes:
-      - ./env:/opt/patscompare/.env
+      - ./.env:/opt/patscompare/.env
       - ./data:/opt/patscompare/data
     depends_on:
       - db
