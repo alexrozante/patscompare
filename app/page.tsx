@@ -58,7 +58,7 @@ export default function HomePage() {
 
     Versão com proxy reveso
     */
-    const socket = io('/', {
+    socket = io('/', {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
