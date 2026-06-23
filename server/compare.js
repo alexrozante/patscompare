@@ -146,7 +146,7 @@ function cosineSimilarity(a, b) {
     magB += countB * countB;
   }
 
-  return dotProduct / (Math.sqrt(magA) * Math.sqrt(magB)) || 0;
+  return Math.min(1, dotProduct / (Math.sqrt(magA) * Math.sqrt(magB)));
 }
 
 function textSimilarity(a, b) {
@@ -166,25 +166,21 @@ function textSimilarity(a, b) {
   if (diff / maxLen > 0.8) 
     return 0;
   
-  const textSimilarity = cosineSimilarity(a, b);
-  const sim = 1 - textSimilarity / maxLen;
+  const sim = cosineSimilarity(a, b);
 
-  return Math.max(0, Math.min(1, sim));
+  return sim;
 }
 
+/*
+ V1
 async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POSFIXA, MAX_PAGES }) {
   const matches = [];
   const simCache = new Map(); // chave: ${i}|${k} -> número
   let j = 0;
 
-  let maxPagesA = MAX_PAGES && MAX_PAGES > 0 ? MAX_PAGES : textA.length;
-  if (MAX_PAGES > textA.length) 
-    maxPagesA = textA.length;
-
-  let maxPagesB = MAX_PAGES && MAX_PAGES > 0 ? MAX_PAGES : textB.length;
-  if (MAX_PAGES > textB.length) 
-    maxPagesB = textB.length;
-
+  let maxPagesA = Math.min(MAX_PAGES || textA.length, textA.length);
+  let maxPagesB = Math.min(MAX_PAGES || textB.length, textB.length);
+    
   const getSim = (i, k) => {
     const key = `${i}|${k}`;
     if (simCache.has(key)) 
@@ -206,6 +202,7 @@ async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POS
     let bestScore = 0;
     for (let k = j; k <= Math.min(j + OFFSET, maxPagesB - 1); k++) {
       const sim = getSim(i, k);
+      log(LOG_DEBUG, 'compare', 'I', `page ${i} compared with page ${k} = similarity of ${sim}`);
       if (sim > bestScore) {
         bestScore = sim;
         best = k;
@@ -218,9 +215,12 @@ async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POS
         j++;
       }
       matches.push({ a: i, b: best, status: 'matched', textSim: bestScore });
+      log(LOG_DEBUG, 'compare', 'I', `matched page ${i} with page ${best} with similarity of ${bestScore}`);
       j = best + 1;
+
     } else {
       matches.push({ a: i, status: 'deleted', textSim: 0 });
+      log(LOG_DEBUG, 'compare', 'I', `deleted page ${i} - best similarity of ${bestScore}`);
     }
 
     if (i % 100 === 0 || i + 1 === maxPagesA)
@@ -234,6 +234,131 @@ async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POS
     matches.push({ b: j, status: 'inserted', textSim: 0 });
     j++;
   }
+  return matches;
+}
+*/
+
+async function matchPages(jobId, progressCb, textA, textB, { OFFSET, FATSIM, POSFIXA, MAX_PAGES }) {
+  const matches = [];
+  const simCache = new Map();
+
+  let maxPagesA = Math.min(MAX_PAGES || textA.length, textA.length);
+  let maxPagesB = Math.min(MAX_PAGES || textB.length, textB.length);
+
+  const getSim = (i, k) => {
+    const key = `${i}|${k}`;
+    if (simCache.has(key)) return simCache.get(key);
+    const sim = textSimilarity(textA[i], textB[k]);
+    simCache.set(key, sim);
+    return sim;
+  };
+
+  if (POSFIXA) {
+    for (let i = 0; i < Math.min(maxPagesA, maxPagesB); i++) {
+      const sim = getSim(i, i);
+      matches.push({ a: i, b: i, status: 'matched', textSim: sim });
+      if (i % 10 === 0 || i + 1 === Math.min(maxPagesA, maxPagesB))
+        await progressCb({ jobId, done: i + 1, total: Math.min(maxPagesA, maxPagesB) });
+    }
+    for (let j = Math.min(maxPagesA, maxPagesB); j < maxPagesB; j++) matches.push({ b: j, status: 'inserted', textSim: 0 });
+    for (let i = Math.min(maxPagesA, maxPagesB); i < maxPagesA; i++) matches.push({ a: i, status: 'deleted', textSim: 0 });
+    return matches;
+  }
+
+  let baseA = 0;
+  let baseB = 0;
+  const window = Math.max(1, Number(OFFSET || 3));
+
+  while (baseA < maxPagesA) {
+    let foundExact = false;
+    let foundA = -1;
+    let foundB = -1;
+    const maxSearchA = Math.min(maxPagesA - 1, baseA + window);
+    const maxSearchB = Math.min(maxPagesB - 1, baseB + window);
+
+    for (let k = baseB; k <= maxSearchB && !foundExact; k++) {
+      for (let i = baseA; i <= maxSearchA; i++) {
+        const s = getSim(i, k);
+        if (s === 1) {
+          foundExact = true;
+          foundA = i;
+          foundB = k;
+          break;
+        }
+      }
+    }
+
+    if (foundExact) {
+      // limiteB é a página ANTES de foundB
+      const limitB = Math.max(baseB, foundB - 1);
+
+      // processa A de baseA até foundA-1 (NÃO incluir foundA)
+      for (let i = baseA; i < foundA; i++) {
+        let best = -1;
+        let bestScore = 0;
+        for (let k = baseB; k <= limitB; k++) {
+          const sim = getSim(i, k);
+          if (sim > bestScore) {
+            bestScore = sim;
+            best = k;
+          }
+        }
+        if (best !== -1 && bestScore >= FATSIM) {
+          while (baseB < best) {
+            matches.push({ b: baseB, status: 'inserted', textSim: 0 });
+            baseB++;
+          }
+          matches.push({ a: i, b: best, status: 'matched', textSim: bestScore });
+          baseB = best + 1;
+        } else {
+          matches.push({ a: i, status: 'deleted', textSim: 0 });
+        }
+      }
+
+      // agora insere a correspondência exata foundA -> foundB
+      // antes, marca quaisquer B entre baseB e foundB-1 como inserted
+      while (baseB < foundB) {
+        matches.push({ b: baseB, status: 'inserted', textSim: 0 });
+        baseB++;
+      }
+      matches.push({ a: foundA, b: foundB, status: 'matched', textSim: 1 });
+      baseB = foundB + 1;
+      baseA = foundA + 1;
+    } else {
+      // nenhum 100% encontrado: tratar a página baseA de forma "greedy" na janela
+      const i = baseA;
+      let best = -1;
+      let bestScore = 0;
+      const maxK = Math.min(maxPagesB - 1, baseB + window);
+      for (let k = baseB; k <= maxK; k++) {
+        const sim = getSim(i, k);
+        if (sim > bestScore) {
+          bestScore = sim;
+          best = k;
+        }
+      }
+      if (best !== -1 && bestScore >= FATSIM) {
+        while (baseB < best) {
+          matches.push({ b: baseB, status: 'inserted', textSim: 0 });
+          baseB++;
+        }
+        matches.push({ a: i, b: best, status: 'matched', textSim: bestScore });
+        baseB = best + 1;
+      } else {
+        matches.push({ a: i, status: 'deleted', textSim: 0 });
+      }
+      baseA++;
+    }
+
+    if (baseA % 100 === 0 || baseA === maxPagesA)
+      await progressCb({ jobId, message: 'progMatchingPages', done: baseA, total: maxPagesA });
+  }
+
+  while (baseB < maxPagesB) {
+    matches.push({ b: baseB, status: 'inserted', textSim: 0 });
+    baseB++;
+  }
+
   return matches;
 }
 
@@ -438,6 +563,7 @@ async function runCompareJob(
 
   // Configura nível de log
   setLogLevel(Number(logLevel));
+  
   await log(LOG_DEBUG, 'compare', 'I', `comparacao ${jobId} - '${title}' iniciada.`);
   await log(LOG_DEBUG, 'compare', 'I', `limite de ${maxCPU} paginas em paralelo.`);
 
@@ -518,8 +644,17 @@ async function runCompareJob(
       }
 
       if (m.status === 'inserted') {
+        const meta = await sharp(outB).metadata();
+        const overlay = await sharp({
+          create: {
+            width: meta.width,
+            height: meta.height,
+            channels: 4,
+            background: { r: 204, g: 255, b: 204, alpha: 0.2 } // verde ~20% = 'rgb(204,255,204)'
+          }
+        }).png().toBuffer();
         await sharp(outB)
-          .flatten({ background: { r: 200, g: 220, b: 255 } })
+          .composite([{ input: overlay, blend: 'over' }])
           .png()
           .toFile(outDiff);
         m.imageSim = 0;
@@ -527,14 +662,22 @@ async function runCompareJob(
         m.hasImageDiff = true;
 
       } else if (m.status === 'deleted') {
+        const meta = await sharp(outA).metadata();
+        const overlay = await sharp({
+          create: {
+            width: meta.width,
+            height: meta.height,
+            channels: 4,
+            background: { r: 229, g: 125, b: 113, alpha: 0.2 } // verdelho ~20% = 'rgb(229 125 113)'
+          }
+        }).png().toBuffer();
         await sharp(outA)
-          .flatten({ background: { r: 255, g: 200, b: 200 } })
+          .composite([{ input: overlay, blend: 'over' }])
           .png()
           .toFile(outDiff);
         m.imageSim = 0;
         m.diffPixels = null;
         m.hasImageDiff = true;
-
       } else {
         const imageResult = await makeDiffImage(outA, outB, outDiff);
         m.imageSim = imageResult.imageSimilarity;

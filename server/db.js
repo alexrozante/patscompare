@@ -12,6 +12,46 @@ export const LOG_NORMAL = 1;
 export const LOG_VERBOSE = 2;
 export const LOG_DEBUG = 3;
 
+// Database connection
+const pool = new Pool({
+  host: process.env.PGHOST || '127.0.0.1',
+  port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+  database: process.env.PGDATABASE || 'patscompare',
+  user: process.env.PGUSER || 'patscompare',
+  password: process.env.PGPASSWORD || '',
+  max: Number(process.env.PG_POOL_MAX || 100),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
+  connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5000)
+});
+
+/**
+ * Calls the specified function N times until it begin succeed, waiting the specified delay between attempts.
+ * @param {*} fn function to call
+ * @param {*} attempts maximum attempts
+ * @param {*} delay miliseconds to wait
+ * @returns undefined
+ * @throws Exception throwed by the called function
+ */
+async function retry(fn, attempts = 5, delay = 200) {
+  let i = 0;
+  while (true) {
+    try { 
+      return await fn(); 
+    }
+    catch (err) {
+      i++;
+      const transient = /* check err.code in ['ECONNREFUSED','ECONNRESET','57P01','40001'] */ true;
+      if (!transient || i >= attempts) 
+        throw err;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, i-1)));
+    }
+  }
+}
+
+//
+// LOG support
+//
+
 let logLevel = LOG_NORMAL;  // 1=Basic, 2=Verbose, 3=Debug
 
 /**
@@ -67,42 +107,9 @@ async function log(level, module, type, message, save=true, toConsole=true) {
   return null;
 }
 
-// Database connection
-const pool = new Pool({
-  host: process.env.PGHOST || '127.0.0.1',
-  port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-  database: process.env.PGDATABASE || 'patscompare',
-  user: process.env.PGUSER || 'patscompare',
-  password: process.env.PGPASSWORD || '',
-  max: Number(process.env.PG_POOL_MAX || 100),
-  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
-  connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5000)
-});
-await log(LOG_DEBUG, 'db', 'I', 'PG Connection (pool): ' + JSON.stringify(pool), true, false);
-
-/**
- * Calls the specified function N times until it begin succeed, waiting the specified delay between attempts.
- * @param {*} fn function to call
- * @param {*} attempts maximum attempts
- * @param {*} delay miliseconds to wait
- * @returns undefined
- * @throws Exception throwed by the called function
- */
-async function retry(fn, attempts = 5, delay = 200) {
-  let i = 0;
-  while (true) {
-    try { 
-      return await fn(); 
-    }
-    catch (err) {
-      i++;
-      const transient = /* check err.code in ['ECONNREFUSED','ECONNRESET','57P01','40001'] */ true;
-      if (!transient || i >= attempts) 
-        throw err;
-      await new Promise(r => setTimeout(r, delay * Math.pow(2, i-1)));
-    }
-  }
-}
+//
+// comparisons table
+//
 
 /**
  * Inserts a comparison in the database comparisons table.
@@ -163,5 +170,11 @@ async function updateComparison(id, fields = {}) {
   await log(LOG_DEBUG, 'db', 'I', `UPDATE executed: ${qry}`);
   return res.rows[0];
 }
+
+
+// DEBUG message on load
+
+await log(LOG_DEBUG, 'db', 'I', 'PG Connection (pool): ' + JSON.stringify(pool), true, false);
+
 
 export { pool, log, getLogLevel, setLogLevel, createComparison, getComparison, updateComparison };

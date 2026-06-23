@@ -38,33 +38,34 @@ export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  //const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '';
-  const SOCKET_PORT = ''; //process.env.NEXT_PUBLIC_SOCKET_PORT || '5001';
+  const EXEC_MODE = (process.env.NEXT_PUBLIC_MODE || 'production').toLowerCase();
+
+  const SOCKET_HOST = process.env.NEXT_PUBLIC_SOCKET_HOST || '';
+  const SOCKET_PORT = process.env.NEXT_PUBLIC_SOCKET_PORT || '';
 
   const t = useTranslations('Result');
   
   // inicializa socket e listener de progresso
   useEffect(() => {
-    /*
-    Versão sem proxy reverso (nginx)
-
-    const host = SOCKET_HOST || window.location.hostname;
-    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-    const socketUrl = `${protocol}://${host}:${SOCKET_PORT}`;
-
-    if (!socket) {
-      socket = io(socketUrl);
+   if (!socket) {
+      if (EXEC_MODE === 'production') {
+        // Em produção há um serviço NginX que redireciona /socket.io para / então SOCKET_HOST e SOCKET_PORT não deve ser utilizados.
+        socket = io('/', {
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
+        });
+      } else {
+        // Em dev a conexão deve ser realizada com URL e porta do servidor e para /socket.io pois não há proxy tratando a request.
+        const socketUrl = `http://${SOCKET_HOST}:${SOCKET_PORT}`;
+        console.log(`Compare - Socket connection = ${socketUrl}`);
+        socket = io(socketUrl, {
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
+        });
+      }
     }
-
-    Versão com proxy reveso
-    */
-    socket = io('/', {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-    });
-
     const handleConnect = () => {
-      console.log(`[socket] conectado`);
+      console.log(`[socket] connected`);
     };
 
     const handleConnectError = (err: any) => {
@@ -76,7 +77,6 @@ export default function HomePage() {
     };
 
     const handler = (data: ProgressEvent) => {
-      //console.log(t('socketProgress'), data);
       let newMessage = data.message;
       if (newMessage) {
         if (newMessage.startsWith('##')) {
