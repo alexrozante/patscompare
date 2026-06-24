@@ -42,21 +42,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-#    environment:
-#      - MODE=production
-#      - ROLE=web
-#      - REDIS_HOST=${REDIS_HOST}
-#      - REDIS_PORT=${REDIS_PORT}
-#      - REDIS_URL=${REDIS_URL}
-#      - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
-#      - MINIO_ACCESS_KEY=${MINIO_USER}
-#      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
-#      - PGHOST=${PGHOST}
-#      - PGDATABASE=${PGDATABASE}
-#      - PGUSER=${PGUSER}
-#      - PGPASSWORD=${PGPASSWORD}
-#      - NEXT_PUBLIC_SOCKET_HOST=${NEXT_PUBLIC_SOCKET_HOST}
-#      - NEXT_PUBLIC_SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
+    environment:
+      - MODE=production
+      - ROLE=web
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_URL=${REDIS_URL}
+      - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - PGHOST=${PGHOST}
+      - PGDATABASE=${PGDATABASE}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
+      - NEXT_PUBLIC_SOCKET_HOST=${NEXT_PUBLIC_SOCKET_HOST}
+      - NEXT_PUBLIC_SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
     ports:
       - "${WEB_PORT}:3000"
     volumes:
@@ -73,16 +73,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.socket
-#    environment:
-#      - REDIS_HOST=${REDIS_HOST}
-#      - REDIS_PORT=${REDIS_PORT}
-#      - REDIS_URL=${REDIS_URL}
-#      - SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
-#      - SOCKET_LOG_LEVEL=${SOCKET_LOG_LEVEL}
-#      - PGHOST=${PGHOST}
-#      - PGDATABASE=${PGDATABASE}
-#      - PGUSER=${PGUSER}
-#      - PGPASSWORD=${PGPASSWORD}
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_URL=${REDIS_URL}
+      - SOCKET_PORT=${NEXT_PUBLIC_SOCKET_PORT}
+      - SOCKET_LOG_LEVEL=${SOCKET_LOG_LEVEL}
+      - PGHOST=${PGHOST}
+      - PGDATABASE=${PGDATABASE}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
     ports:
       - "${NEXT_PUBLIC_SOCKET_PORT}:5001"
     volumes:
@@ -97,21 +97,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-#    environment:
-#      - ROLE=worker
-#      - WORKER_ID=1
-#      - WORKER_CONCURRENCY=1
-#      - REDIS_HOST=${REDIS_HOST}
-#      - REDIS_PORT=${REDIS_PORT}
-#      - REDIS_URL=${REDIS_URL}
-#      - WORKER_LOG_LEVEL=${WORKER_LOG_LEVEL}
-#      - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
-#      - MINIO_ACCESS_KEY=${MINIO_USER}
-#      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
-#      - PGHOST=${PGHOST}
-#      - PGDATABASE=${PGDATABASE}
-#      - PGUSER=${PGUSER}
-#      - PGPASSWORD=${PGPASSWORD}
+    environment:
+      - ROLE=worker
+      - WORKER_ID=1
+      - WORKER_CONCURRENCY=1
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_URL=${REDIS_URL}
+      - WORKER_LOG_LEVEL=${WORKER_LOG_LEVEL}
+      - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT1}
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - PGHOST=${PGHOST}
+      - PGDATABASE=${PGDATABASE}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
     volumes:
       - ./.env:/opt/patscompare/.env
       - ./data:/opt/patscompare/data
